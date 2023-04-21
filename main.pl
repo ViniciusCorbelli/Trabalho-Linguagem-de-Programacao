@@ -1,15 +1,19 @@
+:- use_module(library(clpfd)).
+
 % Predicado principal do jogo
 jogar :-
-    write('Qual vers ̃ao do jogo: normal(1) ou simplificada(2); '),
+    write('Escolha a versão do jogo: '),nl,
+    write(1 - normal),nl,
+    write(2 - implificada),nl,
     read(Versao),
 
-    write('Digite a quantidade de linhas: '),
+    write('Digite a quantidade de linhas: '),nl,
     read(Largura),
 
-    write('Digite a quantidade de colunas: '),
+    write('Digite a quantidade de colunas: '),nl,
     read(Altura),
 
-    write('Digite a quantidade de peças repetidas para ganhar: '),
+    write('Digite a quantidade de peças repetidas para ganhar: '),nl,
     read(Consecutivas),
 
     criar_tabuleiro(Largura, Altura, Tabuleiro),
@@ -32,8 +36,6 @@ criar_linhas(Largura, Altura, [Linha|Tabuleiro]) :-
 imprimir_tabuleiro(Tabuleiro) :-
     reverse(Tabuleiro, TabuleiroInvertido),
     imprimir_linhas(TabuleiroInvertido),
-    write('   '),
-    imprimir_numeros(1, Largura),
     nl.
 
 imprimir_linhas([]).
@@ -46,61 +48,68 @@ imprimir_linhas([Linha|Tabuleiro]) :-
 
 imprimir_linha([]).
 imprimir_linha([Celula|Linha]) :-
-    write(' '),
-    write(Celula),
-    write(' |'),
+    (var(Celula) -> write('   |'); write(' '), write(Celula), write(' |')),
     imprimir_linha(Linha).
-
-imprimir_numeros(N, N).
-imprimir_numeros(I, N) :-
-    write(' '),
-    write(I),
-    I1 is I + 1,
-    imprimir_numeros(I1, N).
 
 % Jogador 1 joga
 jogador1_joga(Largura, Altura, Consecutivas, Tabuleiro, Versao) :-
-    write('Jogador 1 (X), escolha uma coluna: '),
+    write('Jogador 1 (X), escolha uma coluna: '),nl,
     read(Coluna),
-    jogar(Largura, Altura, Consecutivas, Tabuleiro, Coluna, 'X', Tabuleiro1),
-    imprimir_tabuleiro(Tabuleiro1),
+
+    % Verifica se a coluna é válida
+    (Coluna < 1 ; Coluna > Largura) ->
+    write('Coluna inválida. Tente novamente.'), nl,
+    jogador1_joga(Largura, Altura, Consecutivas, Tabuleiro, Versao)
+    ;
+
+    criar_tabuleiro(Largura, Altura, NovoTabuleiro),
+    jogar(Largura, Altura, Consecutivas, Tabuleiro, Coluna, 'X', NovoTabuleiro),
+    imprimir_tabuleiro(NovoTabuleiro),
     (
-        vencedor(Tabuleiro1, Consecutivas, 'X') ->
+        vencedor(NovoTabuleiro, Consecutivas, 'X') ->
             write('Jogador 1 (X) venceu!'), nl
         ;
-            empate(Tabuleiro1) ->
+            empate(NovoTabuleiro) ->
                 write('Empate!'), nl
             ;
-                jogador2_joga(Largura, Altura, Consecutivas, Tabuleiro1, Versao)
+                jogador2_joga(Largura, Altura, Consecutivas, NovoTabuleiro, Versao)
     ).
 
 % Jogador 2 joga
 jogador2_joga(Largura, Altura, Consecutivas, Tabuleiro, Versao) :-
-    write('Jogador 2 (O), escolha uma coluna: '),
+    write('Jogador 2 (O), escolha uma coluna: '),nl,
     read(Coluna),
-    jogar(Largura, Altura, Consecutivas, Tabuleiro, Coluna, 'O', Tabuleiro1),
-    imprimir_tabuleiro(Tabuleiro1),
+
+    % Verifica se a coluna é válida
+    (Coluna < 1 ; Coluna > Largura) ->
+    write('Coluna inválida. Tente novamente.'), nl,
+    jogador2_joga(Largura, Altura, Consecutivas, Tabuleiro, Versao)
+    ;
+
+    jogar(Largura, Altura, Consecutivas, Tabuleiro, Coluna, 'O', Tabuleiro),
+    imprimir_tabuleiro(Tabuleiro),
     (
-        vencedor(Tabuleiro1, Consecutivas, 'O') ->
+        vencedor(Tabuleiro, Consecutivas, 'O') ->
             write('Jogador 2 (O) venceu!'), nl
         ;
-            empate(Tabuleiro1) ->
+            empate(Tabuleiro) ->
                 write('Empate!'), nl
             ;
-                jogador1_joga(Largura, Altura, Consecutivas, Tabuleiro1, Versao)
+                jogador1_joga(Largura, Altura, Consecutivas, Tabuleiro, Versao)
     ).
 
-% Insere uma peça na coluna especificada
-jogar(Largura, Altura, Consecutivas, Tabuleiro, Coluna, Peca, Tabuleiro1) :-
+jogar(Largura, Altura, Consecutivas, Tabuleiro, Coluna, Peca, NovoTabuleiro) :-
     nth1(Coluna, Tabuleiro, ColunaTabuleiro),
-    length(ColunaTabuleiro, AlturaColuna),
-    AlturaColuna < Altura,
-    inserir_peca(ColunaTabuleiro, Peca, ColunaTabuleiro1),
-    substituir(Coluna, Tabuleiro, ColunaTabuleiro1, Tabuleiro1),
-    !,
-    verificar_vitoria_horizontal(Tabuleiro1, Consecutivas, Peca),
-    verificar_vitoria_vertical(Tabuleiro1, Consecutivas, Peca),
-    verificar_vitoria_diagonal(Tabuleiro1, Consecutivas, Peca).
+    length(ColunaTabuleiro, AlturaColuna), % erro aqui
+    AlturaColuna < Altura, % erro aqui
+    inserir_peca(ColunaTabuleiro, Peca, ColunaTabuleiro1), % erro aqui
+    substituir(Coluna, Tabuleiro, ColunaTabuleiro1, NovoTabuleiro), % erro aqui
+    !, % erro aqui
+    verificar_vitoria_horizontal(NovoTabuleiro, Consecutivas, Peca),
+    verificar_vitoria_vertical(NovoTabuleiro, Consecutivas, Peca),
+    verificar_vitoria_diagonal(NovoTabuleiro, Consecutivas, Peca).
+    
+
 
 % Insere uma peça em uma coluna
 inserir_peca(ColunaTabuleiro, Peca, ColunaTabuleiro1) :-
@@ -152,7 +161,8 @@ verificar_vitoria(Linha, Consecutivas, Peca) :-
 
 % Verifica se houve empate
 empate(Tabuleiro) :-
-    todas_colunas_preenchidas(Tabuleiro).
+    %todas_colunas_preenchidas(Tabuleiro).
+    fail.
 
 % Verifica se todas as colunas foram preenchidas
 todas_colunas_preenchidas([]).
@@ -163,10 +173,13 @@ todas_colunas_preenchidas([ColunaTabuleiro|Tabuleiro]) :-
 
 % Verifica se há um vencedor
 vencedor(Tabuleiro, Consecutivas, Peca) :-
-    verificar_vitoria_horizontal(Tabuleiro, Consecutivas, Peca).
+    fail.
+    %verificar_vitoria_horizontal(Tabuleiro, Consecutivas, Peca).
 vencedor(Tabuleiro, Consecutivas, Peca) :-
-    verificar_vitoria_vertical(Tabuleiro, Consecutivas, Peca).
+    fail.
+    %verificar_vitoria_vertical(Tabuleiro, Consecutivas, Peca).
 vencedor(Tabuleiro, Consecutivas, Peca) :-
-    verificar_vitoria_diagonal(Tabuleiro, Consecutivas, Peca).
+    fail.
+    %verificar_vitoria_diagonal(Tabuleiro, Consecutivas, Peca).
 
 :- jogar.
