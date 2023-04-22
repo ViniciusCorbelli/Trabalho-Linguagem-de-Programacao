@@ -154,27 +154,44 @@ jogador1_joga(Tabuleiro) :-
 
 % Jogador 2 joga
 jogador2_joga(Tabuleiro) :-
-    write('Jogador 2 (O), escolha uma coluna: '),nl,
-    read(Coluna),
-
-    % Verifica se a coluna é válida
-    (Coluna < 1 ; Coluna > largura(Largura)) ->
-    write('Coluna invalida. Tente novamente.'), nl,
-    jogador2_joga(Tabuleiro)
-    ;
-
-    % Verifica vers�o do jogo
-    (versao(Versao) =:= 1) ->
-    write('Jogador 2 (O), escolha uma linha: '), nl,
-    read(Linha1),
+    write('Vez do Jogador 2 (O)'), nl,
+    jogada_minimax(Tabuleiro, 'O', Jogada),
+    [Linha, Coluna] = Jogada,
     criar_tabuleiro(NovoTabuleiro),
     copia_tabuleiro(Tabuleiro, NovoTabuleiro),
-    troca(NovoTabuleiro, Linha1, Coluna, TabuleiroMod),
-    imprimir_tabuleiro(TabuleiroMod),
-    jogador1_joga(TabuleiroMod)
-    ;
-    (versao(Versao) =:= 2) ->
-    write('versao(Versao) nao implementada'), nl.
+    troca(NovoTabuleiro, Linha, Coluna, TabuleiroMod),
+    jogar(Tabuleiro, Coluna, Linha, 'O', NovoTabuleiro),
+    jogador1_joga(TabuleiroMod).
+
+jogada_minimax(Tabuleiro, Jogador, NovoTabuleiro) :-
+    findall(
+        [V, NovoTabuleiro1],
+        (between(1, largura(Largura), coluna(Coluna)),
+            jogada_possivel(Tabuleiro, Coluna),
+            jogar(Tabuleiro, Coluna, _, Jogador, NovoTabuleiro1),
+            minimax(NovoTabuleiro1, 'X', 1, _, V)),
+        ListaJogadas),
+    seleciona_melhor_jogada(ListaJogadas, _, NovoTabuleiro).
+
+% Seleciona a melhor jogada para o jogador
+seleciona_melhor_jogada(Tabuleiro, Jogador, MelhorJogada) :-
+    nth1(1, Tabuleiro, PrimeiraLinha), 
+    length(PrimeiraLinha, Altura),
+    length(Posicoes, Altura),
+    domain(Posicoes, 1,  largura(Largura)),
+    verifica_jogadas(Tabuleiro, Jogador, Posicoes),
+    labeling([max], Posicoes),
+    nth1(Altura, Posicoes, MelhorJogada).
+    
+% Verifica todas as jogadas possíveis para o jogador
+verifica_jogadas(_, _, _, []).
+verifica_jogadas(Tabuleiro, Jogador, [Jogada|Resto]) :-
+    jogar_pecas(Jogador, Jogada, Tabuleiro, NovoTabuleiro),
+    not(vencedor(NovoTabuleiro, consecutivas(Consecutivas), Jogador)),
+    verifica_jogadas(Tabuleiro, Jogador, Resto).
+verifica_jogadas(Tabuleiro, Jogador, [Jogada|_]) :-
+    jogar_pecas(Jogador, Jogada, Tabuleiro, NovoTabuleiro),
+    vencedor(NovoTabuleiro, Jogador).
 
 
 % Verifica se há um vencedor na horizontal
