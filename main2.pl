@@ -22,7 +22,6 @@ jogar :-
 
 % Cria um tabuleiro vazio com o tamanho especificado
 criar_tabuleiro(Largura, Altura, Tabuleiro) :-
-    length(Tabuleiro, Altura),
     criar_linhas(Largura, Altura, Tabuleiro).
 
 % Funcao auxiliar para criar linhas de novo tabuleiro
@@ -32,10 +31,6 @@ criar_linhas(Largura, Altura, [Linha|Tabuleiro]) :-
     length(Linha, Largura),
     Altura1 is Altura - 1,
     criar_linhas(Largura, Altura1, Tabuleiro).
-
-% Funcao para copiar um tabuleiro
-copia_tabuleiro(Tabuleiro, NovoTabuleiro) :-
-    copy_term(Tabuleiro, NovoTabuleiro).
 
 % Funcao para imprimir o tabuleiro
 imprime_tabuleiro(Tabuleiro) :-
@@ -55,67 +50,55 @@ print_linha([Simbolo|Simbolos]) :-
     print_linha(Simbolos).
 
 % funÁ„o para substituir um elemento em uma posiÁ„o especÌfica
-troca([Linha|Linhas], 1, Coluna, [NovaLinha|Linhas]) :-
-    troca_linha(Linha, Coluna, 'X', NovaLinha).
-troca([Linha|Linhas], NumLinha, Coluna, [Linha|NovasLinhas]) :-
+troca([Linha|Linhas], 1, Coluna, [NovaLinha|Linhas], Simbolo) :-
+    troca_linha(Linha, Coluna, Simbolo, NovaLinha).
+troca([Linha|Linhas], NumLinha, Coluna, [Linha|NovasLinhas], Simbolo) :-
     NumLinha > 1,
     NumLinha1 is NumLinha - 1,
-    troca(Linhas, NumLinha1, Coluna, NovasLinhas).
+    troca(Linhas, NumLinha1, Coluna, NovasLinhas, Simbolo).
 
 % funÁ„o para substituir um elemento em uma linha especÌfica
-troca_linha([_|Colunas], 1, X, [X|Colunas]).
-troca_linha([Coluna|Colunas], NumColuna, X, [Coluna|NovasColunas]) :-
-    NumColuna > 1,
+troca_linha([_|Colunas], 1, Simbolo, [Simbolo|Colunas]).
+troca_linha([Coluna|Colunas], NumColuna, Simbolo, [Coluna|NovasColunas]) :-
+    NumColuna =\= 1,
     NumColuna1 is NumColuna - 1,
-    troca_linha(Colunas, NumColuna1, X, NovasColunas).
+    troca_linha(Colunas, NumColuna1, Simbolo, NovasColunas).
 
 % Jogador 1 joga
 jogador1_joga(Largura, Altura, Consecutivas, Tabuleiro, Versao) :-
+    (Versao =:= 1) ->
     write('Jogador 1 (X), escolha uma coluna: '),nl,
     read(Coluna),
-
-    % Verifica se a coluna √© v√°lida
-    (Coluna < 1 ; Coluna > Largura) ->
-    write('Coluna invalida. Tente novamente.'), nl,
-    jogador1_joga(Largura, Altura, Consecutivas, Tabuleiro, Versao)
-    ;
-
-    % Verifica vers„o do jogo
-    (Versao =:= 1) ->
+    Coluna > 0, !,
+    Coluna =< Largura, !,
     write('Jogador 1 (X), escolha uma linha: '), nl,
     read(Linha1),
+    Linha1 > 0, !,
+    Linha1 =< Altura, !,
     criar_tabuleiro(Largura, Altura, NovoTabuleiro),
-    copia_tabuleiro(Tabuleiro, NovoTabuleiro),
-    troca(NovoTabuleiro, Linha1, Coluna, TabuleiroMod),
-    imprime_tabuleiro(TabuleiroMod),
-    jogador2_joga(Largura, Altura, Consecutivas, TabuleiroMod, Versao)
-    ;
-    (Versao =:= 2) ->
-    write('Versao nao implementada'), nl.
+    troca(Tabuleiro, Linha1, Coluna, NovoTabuleiro, 'X'),
+    imprime_tabuleiro(NovoTabuleiro),
+    jogador2_joga(Largura, Altura, Consecutivas, NovoTabuleiro, Versao);
+    write('Versao 2 ainda nao implementada '),
+    fail.
 
 % Jogador 2 joga
 jogador2_joga(Largura, Altura, Consecutivas, Tabuleiro, Versao) :-
+    (Versao =:= 1) ->
     write('Jogador 2 (O), escolha uma coluna: '),nl,
     read(Coluna),
-
-    % Verifica se a coluna √© v√°lida
-    (Coluna < 1 ; Coluna > Largura) ->
-    write('Coluna invalida. Tente novamente.'), nl,
-    jogador1_joga(Largura, Altura, Consecutivas, Tabuleiro, Versao)
-    ;
-
-    % Verifica vers„o do jogo
-    (Versao =:= 1) ->
+    Coluna > 0, !,
+    Coluna =< Largura, !,
     write('Jogador 2 (O), escolha uma linha: '), nl,
     read(Linha1),
+    Linha1 > 0, !,
+    Linha1 =< Altura, !,
     criar_tabuleiro(Largura, Altura, NovoTabuleiro),
-    copia_tabuleiro(Tabuleiro, NovoTabuleiro),
-    troca(NovoTabuleiro, Linha1, Coluna, TabuleiroMod),
-    imprime_tabuleiro(TabuleiroMod),
-    jogador1_joga(Largura, Altura, Consecutivas, TabuleiroMod, Versao)
-    ;
-    (Versao =:= 2) ->
-    write('Versao nao implementada'), nl.
+    troca(Tabuleiro, Linha1, Coluna, NovoTabuleiro, 'O'),
+    imprime_tabuleiro(NovoTabuleiro),
+    jogador1_joga(Largura, Altura, Consecutivas, NovoTabuleiro, Versao);
+    write('Versao 2 ainda nao implementada'),
+    fail.
 
 
 % Verifica se h√° um vencedor na horizontal
