@@ -82,7 +82,6 @@ jogar :-
 criar_tabuleiro(Tabuleiro) :-
     largura(Largura),
     altura(Altura),
-    length(Tabuleiro, Altura),
     criar_linhas(Largura, Altura, Tabuleiro).
 
 criar_linhas(_, 0, []).
@@ -91,10 +90,6 @@ criar_linhas(Largura, Altura, [Linha|Tabuleiro]) :-
     length(Linha, Largura),
     Altura1 is Altura - 1,
     criar_linhas(Largura, Altura1, Tabuleiro).
-
-% Função para copiar um tabuleiro
-copia_tabuleiro(Tabuleiro, NovoTabuleiro) :-
-    copy_term(Tabuleiro, NovoTabuleiro).
 
 % Imprime o tabuleiro
 imprimir_tabuleiro(Tabuleiro) :-
@@ -116,124 +111,140 @@ imprimir_linha([Celula|Linha]) :-
     imprimir_linha(Linha).
 
 % função para substituir um elemento em uma posição específica
-troca([Linha|Linhas], 1, Coluna, [NovaLinha|Linhas]) :-
-    troca_linha(Linha, Coluna, 'X', NovaLinha).
-troca([Linha|Linhas], NumLinha, Coluna, [Linha|NovasLinhas]) :-
+troca([Linha|Linhas], 1, Coluna, [NovaLinha|Linhas], Simbolo) :-
+    troca_linha(Linha, Coluna, Simbolo, NovaLinha).
+troca([Linha|Linhas], NumLinha, Coluna, [Linha|NovasLinhas], Simbolo) :-
     NumLinha > 1,
     NumLinha1 is NumLinha - 1,
-    troca(Linhas, NumLinha1, Coluna, NovasLinhas).
+    troca(Linhas, NumLinha1, Coluna, NovasLinhas, Simbolo).
 
 % função para substituir um elemento em uma linha específica
-troca_linha([_|Colunas], 1, X, [X|Colunas]).
-troca_linha([Coluna|Colunas], NumColuna, X, [Coluna|NovasColunas]) :-
-    NumColuna > 1,
+troca_linha([_|Colunas], 1, Simbolo, [Simbolo|Colunas]).
+troca_linha([Coluna|Colunas], NumColuna, Simbolo, [Coluna|NovasColunas]) :-
+    NumColuna =\= 1,
     NumColuna1 is NumColuna - 1,
-    troca_linha(Colunas, NumColuna1, X, NovasColunas).
+    troca_linha(Colunas, NumColuna1, Simbolo, NovasColunas).
 
 % Jogador 1 joga
 jogador1_joga(Tabuleiro) :-
+    versao(Versao),
+    largura(Largura),
+    altura(Altura),
+
     write('Vez do Jogador 1 (X)'),nl,
 
+    (Versao =:= 1) ->
     write('Escolha uma coluna: '),nl,
     read(Coluna),
+    Coluna > 0, !,
+    Coluna =< Largura, !,
 
-    largura(Largura),
-    % Verifica se a coluna é válida
-    (Coluna < 1 ; Coluna > Largura) ->
-    write('Coluna invalida. Tente novamente.'), nl,
-    jogador1_joga(Tabuleiro)
-    ;
-
-    versao(Versao),
-    % Verifica versão do jogo
-    (Versao =:= 1) ->
     write('Escolha uma linha: '), nl,
-    read(Linha),
+    read(Linha1),
+    Linha1 > 0, !,
+    Linha1 =< Altura, !,
 
     criar_tabuleiro(NovoTabuleiro),
-    copia_tabuleiro(Tabuleiro, NovoTabuleiro),
-    troca(NovoTabuleiro, Linha, Coluna, TabuleiroMod),
-    imprimir_tabuleiro(TabuleiroMod),
-    jogador2_joga(TabuleiroMod)
+    troca(Tabuleiro, Linha1, Coluna, NovoTabuleiro, 'X'),
+    imprimir_tabuleiro(NovoTabuleiro),
+    jogador2_joga(NovoTabuleiro)
+
     ;
     (Versao =:= 2) ->
     write('Versão nao implementada'), nl.
 
 % Jogador 2 joga
 jogador2_joga(Tabuleiro) :-
+    versao(Versao),
+    largura(Largura),
+    altura(Altura),
+
     write('Vez do Jogador 2 (O)'),nl,
 
+    (Versao =:= 1) ->
     write('Escolha uma coluna: '),nl,
     read(Coluna),
-
-    largura(Largura),
-    % Verifica se a coluna é válida
-    (Coluna < 1 ; Coluna > Largura) ->
-    write('Coluna invalida. Tente novamente.'), nl,
-    jogador2_joga(Tabuleiro)
-    ;
-
-    versao(Versao),
-    % Verifica versão do jogo
-    (Versao =:= 1) ->
-
-    /*
-    jogada_minimax(Tabuleiro, 'O', Jogada),
-    [Linha, Coluna] = Jogada,
-    write('Escolheu a coluna: '),write(Coluna),nl,
-    write('Escolheu a linha: '),write(Linha),nl,
-    */
+    Coluna > 0, !,
+    Coluna =< Largura, !,
 
     write('Escolha uma linha: '), nl,
-    read(Linha),
+    read(Linha1),
+    Linha1 > 0, !,
+    Linha1 =< Altura, !,
 
     criar_tabuleiro(NovoTabuleiro),
-    copia_tabuleiro(Tabuleiro, NovoTabuleiro),
-    troca(NovoTabuleiro, Linha, Coluna, TabuleiroMod),
-    imprimir_tabuleiro(TabuleiroMod),
-    jogador1_joga(TabuleiroMod)
+    troca(Tabuleiro, Linha1, Coluna, NovoTabuleiro, 'O'),
+    imprimir_tabuleiro(NovoTabuleiro),
+    jogador1_joga(NovoTabuleiro)
+
     ;
     (Versao =:= 2) ->
     write('Versão nao implementada'), nl.
 
-jogada_minimax(Tabuleiro, Jogador, NovoTabuleiro) :-
-    largura(Largura),
-    findall(
-        [V, NovoTabuleiro1],
-        (between(1, Largura, Coluna),
-            jogada_possivel(Tabuleiro, Coluna),
-            jogar(Tabuleiro, Coluna, _, Jogador, NovoTabuleiro1),
-            minimax(NovoTabuleiro1, 'X', 1, _, V)),
-        ListaJogadas),
-    seleciona_melhor_jogada(ListaJogadas, _, NovoTabuleiro).
-
-% Verifica se uma jogada é possível
-jogada_possivel(Tabuleiro, Posicao) :-
-    nth1(Posicao, Tabuleiro, Valor),
-    var(Valor).
-
-% Seleciona a melhor jogada para o jogador
-seleciona_melhor_jogada(Tabuleiro, Jogador, MelhorJogada) :-
-    largura(Largura),
-    nth1(1, Tabuleiro, PrimeiraLinha), 
-    length(PrimeiraLinha, Altura),
-    length(Posicoes, Altura),
-    domain(Posicoes, 1,  Largura),
-    verifica_jogadas(Tabuleiro, Jogador, Posicoes),
-    labeling([max], Posicoes),
-    nth1(Altura, Posicoes, MelhorJogada).
+melhor_jogada(Tabuleiro, Jogador, MelhorJogada) :-
+    findall(Pos, posicao_vazia(Tabuleiro, Pos), PosicoesVazias),
+    minimax(Tabuleiro, Jogador, PosicoesVazias, [], _, MelhorJogada, _).
     
-% Verifica todas as jogadas possíveis para o jogador
-verifica_jogadas(_, _, _, []).
-verifica_jogadas(Tabuleiro, Jogador, [Jogada|Resto]) :-
-    consecutivas(Consecutivas),
-    jogar_pecas(Jogador, Jogada, Tabuleiro, NovoTabuleiro),
-    not(vencedor(NovoTabuleiro, Consecutivas, Jogador)),
-    verifica_jogadas(Tabuleiro, Jogador, Resto).
-verifica_jogadas(Tabuleiro, Jogador, [Jogada|_]) :-
-    jogar_pecas(Jogador, Jogada, Tabuleiro, NovoTabuleiro),
-    vencedor(NovoTabuleiro, Jogador).
+% avalia a melhor jogada utilizando o algoritmo Minimax
+minimax(Tabuleiro, _, [], _, Pontuacao, _, _) :-
+    avalia_tabuleiro(Tabuleiro, Pontuacao).
+minimax(Tabuleiro, Jogador, [Posicao|Posicoes], Caminho, MelhorPontuacao, MelhorJogada, Profundidade) :-
+    profundidade_maxima(ProfundidadeMaxima),
+    Profundidade < ProfundidadeMaxima,
+    copia_tabuleiro(Tabuleiro, NovoTabuleiro),
+    troca(NovoTabuleiro, Posicao, Jogador, NovoTabuleiro2),
+    outro_jogador(Jogador, OutroJogador),
+    proxima_jogada(OutroJogador, ProximaJogada),
+    NovaProfundidade is Profundidade + 1,
+    minimax(NovoTabuleiro2, ProximaJogada, Posicoes, [Posicao|Caminho], Pontuacao, _, NovaProfundidade),
+    melhor_jogada(Jogador, Caminho, MelhorJogada, Pontuacao, MelhorPontuacao, Posicao, Posicoes).
+    
+% encontra a melhor jogada para o jogador 2
+melhor_jogada('O', [], MelhorJogada, _, _, MelhorJogada, _).
+melhor_jogada('O', [Jogada|Caminho], MelhorJogadaAtual, PontuacaoAtual, MelhorPontuacao, _, _) :-
+    avalia_jogada('O', Jogada, Pontuacao),
+    (Pontuacao > PontuacaoAtual ->
+        melhor_jogada('O', Caminho, Jogada, Pontuacao, MelhorPontuacao, _, _)
+    ;
+        melhor_jogada('O', Caminho, MelhorJogadaAtual, PontuacaoAtual, MelhorPontuacao, _, _)
+    ).
+    
+% encontra a melhor jogada para o jogador 1
+melhor_jogada('X', [], MelhorJogada, _, _, MelhorJogada, _).
+melhor_jogada('X', [Jogada|Caminho], MelhorJogadaAtual, PontuacaoAtual, MelhorPontuacao, _, _) :-
+    avalia_jogada('X', Jogada, Pontuacao),
+    (Pontuacao < PontuacaoAtual ->
+        melhor_jogada('X', Caminho, Jogada, Pontuacao, MelhorPontuacao, _, _)
+    ;
+        melhor_jogada('X', Caminho, MelhorJogadaAtual, PontuacaoAtual, MelhorPontuacao, _, _)
+    ).
 
+avalia_tabuleiro(Tabuleiro, Pontuacao) :-
+    % Verifica se algum jogador venceu
+    venceu(Tabuleiro, 'X'), Pontuacao is -100;
+    venceu(Tabuleiro, 'O'), Pontuacao is 100;
+    
+    % Verifica se o jogo empatou
+    jogo_empatado(Tabuleiro), Pontuacao is 0;
+    
+    % Caso contrário, calcula a pontuação baseada na quantidade de peças em jogo
+    % do jogador e do adversário
+    count_ocorrencias(Tabuleiro, 'O', QtdO),
+    count_ocorrencias(Tabuleiro, 'X', QtdX),
+    Pontuacao is QtdO - QtdX.
+
+count_ocorrencias(Tabuleiro, Simbolo, Qtd) :-
+    flatten(Tabuleiro, TabuleiroAchatado),
+    include(=(Simbolo), TabuleiroAchatado, Ocorrencias),
+    length(Ocorrencias, Qtd).
+    
+
+% Retorna a posição vazia (com valor ' ') em uma coluna específica
+posicao_vazia(Tabuleiro, Posicao) :-
+    nth0(Linha, Tabuleiro, LinhaTabuleiro),
+    nth0(Coluna, LinhaTabuleiro, Vazio),
+    Vazio == ' ',
+    Posicao = [Linha, Coluna].
 
 % Verifica se há um vencedor na horizontal
 verificar_vitoria_horizontal(Tabuleiro, Peca) :-
@@ -284,6 +295,25 @@ todas_colunas_preenchidas([ColunaTabuleiro|Tabuleiro]) :-
     length(ColunaTabuleiro, Altura),
     Altura > 0,
     todas_colunas_preenchidas(Tabuleiro).
+
+venceu(Tabuleiro, Jogador) :-
+    % verifica linhas
+    member([Jogador,Jogador,Jogador], Tabuleiro),
+    
+    % verifica colunas
+    transpose(Tabuleiro, Transposta),
+    member([Jogador,Jogador,Jogador], Transposta),
+    
+    % verifica diagonal principal
+    nth0(0, Tabuleiro, [Jogador,_,_]),
+    nth0(1, Tabuleiro, [_,Jogador,_]),
+    nth0(2, Tabuleiro, [_,_,Jogador]),
+    
+    % verifica diagonal secundária
+    nth0(0, Tabuleiro, [_,_,Jogador]),
+    nth0(1, Tabuleiro, [_,Jogador,_]),
+    nth0(2, Tabuleiro, [Jogador,_,_]).
+    
 
 % Verifica se há um vencedor
 vencedor(Tabuleiro, Peca) :-
