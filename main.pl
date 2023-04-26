@@ -13,7 +13,6 @@ limpar_console :-
         shell('clear') % caso contrário, executa o comando "clear"
     ).
 
-
 solicita_versao :-
     write('Escolha a versão do jogo: '), nl,
     write('1 - Normal'), nl,
@@ -69,6 +68,8 @@ valida_consecutivas(Consecutivas) :-
     % armazena o valor da consecutivas na variável global
     asserta(consecutivas(Consecutivas)).
 
+
+% Predicado principal do jogo
 jogar :-
     limpar_console,
     % chama o predicado que solicita a versão
@@ -83,29 +84,39 @@ jogar :-
     % chama o predicado que solicita os repetidas
     solicita_consecutivas,
 
-    criar_tabuleiro(Tabuleiro),
-    imprimir_tabuleiro(Tabuleiro),
-    jogador1_joga(Tabuleiro).
+    cria_tabuleiro(Tabuleiro),
+    imprime_tabuleiro(Tabuleiro),
 
-% Cria um tabuleiro vazio com o tamanho especificado
-criar_tabuleiro(Tabuleiro) :-
+    versao(Versao),
+
+    (Versao =:= 1) ->
+    joga_v1(Tabuleiro);
+
+    joga_v2(Tabuleiro).
+
+% PREDICADOS GERAIS DO PROBLEMA
+% estabelece simbolos aceitos
+simbolo('X').
+simbolo('O').
+
+% Predicado para criar tabuleiro
+cria_tabuleiro(Tabuleiro) :-
     largura(Largura),
     altura(Altura),
-    criar_linhas(Largura, Altura, Tabuleiro).
 
-criar_linhas(_, 0, []).
-criar_linhas(Largura, Altura, [Linha|Tabuleiro]) :-
-    Altura > 0,
-    length(Linha, Largura),
-    Altura1 is Altura - 1,
-    criar_linhas(Largura, Altura1, Tabuleiro).
+    length(Tabuleiro, Largura),
+    maplist(length_(Altura), Tabuleiro).
+length_(Altura, Tabuleiro) :-
+    length(Tabuleiro, Altura),
+    maplist(nulo, Tabuleiro).
+nulo('N').
 
-% Imprime o tabuleiro
-imprimir_tabuleiro(Tabuleiro) :-
+% Predicado para imprimir o tabuleiro
+imprime_tabuleiro(Tabuleiro) :-
     limpar_console,
     imprimir_linhas(Tabuleiro).
 
-% Funcoes auxiliares para imprimir o tabuleiro, linha por linha
+% Predicados para auxiliar na imprecao do tabuleiro, linha por linha
 imprimir_linhas([]).
 imprimir_linhas([Linha|Tabuleiro]) :-
     write(' |'),
@@ -116,217 +127,174 @@ imprimir_linhas([Linha|Tabuleiro]) :-
 
 imprimir_linha([]).
 imprimir_linha([Celula|Linha]) :-
-    (nonvar(Celula), write(Celula); write(' ')),
+    write(Celula),
     write(' | '),
     imprimir_linha(Linha).
 
-% função para substituir um elemento em uma posição específica
-troca([Linha|Linhas], 1, Coluna, [NovaLinha|Linhas], Simbolo) :-
+% Predicado que tenta buscar simbolo na posicao m x n do tabuleiro
+verifica_simbolo(Tabuleiro, Linha, Coluna):-
+    nth1(Linha, Tabuleiro, LinhaTabuleiro),
+    nth1(Coluna, LinhaTabuleiro, PosSim),
+    not(simbolo(PosSim)).
+
+% PREDICADOS PARA A VERSAO 1 DO JOGO DA VELHA
+% Predicado para substituir um elemento em uma posição específica
+troca_v1([Linha|Linhas], 1, Coluna, [NovaLinha|Linhas], Simbolo) :-
     troca_linha(Linha, Coluna, Simbolo, NovaLinha).
-troca([Linha|Linhas], NumLinha, Coluna, [Linha|NovasLinhas], Simbolo) :-
+troca_v1([Linha|Linhas], NumLinha, Coluna, [Linha|NovasLinhas], Simbolo) :-
     NumLinha > 1,
     NumLinha1 is NumLinha - 1,
-    troca(Linhas, NumLinha1, Coluna, NovasLinhas, Simbolo).
+    troca_v1(Linhas, NumLinha1, Coluna, NovasLinhas, Simbolo).
 
-% função para substituir um elemento em uma linha específica
+% Predicado para substituir um elemento em uma linha específica
 troca_linha([_|Colunas], 1, Simbolo, [Simbolo|Colunas]).
 troca_linha([Coluna|Colunas], NumColuna, Simbolo, [Coluna|NovasColunas]) :-
     NumColuna =\= 1,
     NumColuna1 is NumColuna - 1,
     troca_linha(Colunas, NumColuna1, Simbolo, NovasColunas).
 
-% Jogador 1 joga
-jogador1_joga(Tabuleiro) :-
-    versao(Versao),
+% Predicado para fazer jogada
+joga_v1(Tabuleiro) :-
     largura(Largura),
     altura(Altura),
+    consecutivas(Consecutivas),
 
-    write('Vez do Jogador 1 (X)'),nl,
-
-    (Versao =:= 1) ->
-    write('Escolha uma coluna: '),nl,
+    write('Jogador 1 (X), escolha uma coluna: '),nl,
     read(Coluna),
     Coluna > 0, !,
     Coluna =< Largura, !,
-
-    write('Escolha uma linha: '), nl,
+    write('Jogador 1 (X), escolha uma linha: '), nl,
     read(Linha1),
     Linha1 > 0, !,
     Linha1 =< Altura, !,
-
-    criar_tabuleiro(NovoTabuleiro),
-    troca(Tabuleiro, Linha1, Coluna, NovoTabuleiro, 'X'),
-    imprimir_tabuleiro(NovoTabuleiro),
-    jogador2_joga(NovoTabuleiro)
-
-    ;
-    (Versao =:= 2) ->
-    write('Versão nao implementada'), nl.
+    (verifica_simbolo(Tabuleiro, Linha1, Coluna)) ->
+    troca_v1(Tabuleiro, Linha1, Coluna, NovoTabuleiro, 'X'),
+    imprime_tabuleiro(NovoTabuleiro),
+    not(vitoria_horizontal(NovoTabuleiro, Linha1, 'X', 1)),
+    not(vitoria_vertical(NovoTabuleiro, Coluna, 'X', 1)),
+    joga2_v1(NovoTabuleiro);
+    write('Posicao ja preenchida, escolha outra '), nl,
+    joga_v1(Tabuleiro).
 
 % Jogador 2 joga
-jogador2_joga(Tabuleiro) :-
-    versao(Versao),
-     write('Vez do Jogador 2 (O)'),nl,
-        
-    % Verifica versão do jogo
-    (Versao =:= 1) ->
-    busca_astar(Tabuleiro, 'O', Linha, Coluna),
-    write('Escolheu a coluna: '),write(Coluna),nl,
-    write('Escolheu a linha: '),write(Linha),nl,
-    
-    criar_tabuleiro(NovoTabuleiro),
-    troca(NovoTabuleiro, Linha, Coluna, TabuleiroMod),
-    imprimir_tabuleiro(TabuleiroMod),
-    jogador1_joga(TabuleiroMod)
-    ;
-    (Versao =:= 2) ->
-    write('Versão nao implementada'), nl.
-    
-busca_astar(Tabuleiro, Peca, Linha, Coluna) :-
-    findall((L, C), (between(1, 3, L), between(1, 3, C), nth1(L, Tabuleiro, Linha), nth1(C, Linha, e)), EspacosLivres),
-    astar(Tabuleiro, Peca, EspacosLivres, (Linha, Coluna)).
-        
-% Cálculo da heurística h
-h(Tabuleiro, Peca, (L, C), H) :-
-    % Define as possíveis linhas, colunas e diagonais que podem ser formadas passando pelo espaço livre (L, C)
-    nth1(L, Tabuleiro, Linha),
-    transpose(Tabuleiro, Transposta),
-    nth1(C, Transposta, Coluna),
-    diagonal(Tabuleiro, DiagonalPrincipal),
-    diagonal(reverse(Tabuleiro), DiagonalSecundaria),
-    
-    % Verifica quantas peças iguais consecutivas existem para cada linha, coluna e diagonal
-    findall(Consecutivas, (member(Seq, [Linha, Coluna, DiagonalPrincipal, DiagonalSecundaria]), verifica_consecutivas(Seq, Peca, Consecutivas)), NumConsecutivas),
-    max_list(NumConsecutivas, H).
-        
-% Testa se existem Consecutivas peças iguais consecutivas
-verifica_consecutivas(Seq, Peca, Consecutivas) :-
-    consecutivas(Consec),
-    findall(Peca, nth1(_, Seq, Peca), Ocorrencias),
-    one_or_more_occur(Ocorrencias, Consec, false, true),
-    consecutivas == Consecutivas.
-        
-% Função auxiliar para verificar se um número mínimo de ocorrências de um elemento em uma lista foi atingido
-one_or_more_occur(_, 1, _, true) :- !.
-one_or_more_occur([], _, _, false) :- !.
-one_or_more_occur([H|T], N, Prev, Found) :-
-    (H == Prev ->
-    M is N - 1,
-    one_or_more_occur(T, M, H, Found)
-    ;
-    one_or_more_occur(T, N, H, Found)
-    ).
-
-% Implementação do A*
-astar(Tabuleiro, Peca, EspacosLivres, (Linha, Coluna)) :-
-    % Define o espaço livre com menor custo
-    maplist(h(Tabuleiro, Peca), EspacosLivres, HS),
-    maplist(length, EspacosLivres, GS),
-    sum_list(HS, SHS),
-    sum_list(GS, SGS),
-    find_min([(SHS + SGS, Espaco)|_]), % Ordena pelo menor custo
-    
-    % Troca a peça no espaço livre e verifica se houve vitória ou empate
-    troca(Tabuleiro, Linha, Coluna, NovoTabuleiro, Peca),
-    (venceu(NovoTabuleiro, Peca) ->
-    Linha = Linha, Coluna = Coluna
-    ;
-    (empate(NovoTabuleiro) ->
-    Linha = Linha, Coluna = Coluna
-    ;
-    % Continua a busca recursivamente com o novo tabuleiro e os espaços livres restantes
-    delete(EspacosLivres, (Linha, Coluna), NovosEspacosLivres),
-    astar(NovoTabuleiro, Peca, NovosEspacosLivres, (L, C)),
-    Linha = L, Coluna = C
-    )
-    ).
-        
-% Função auxiliar para encontrar o mínimo em uma lista de pares (Valor, Elemento)
-find_min([(V, E)|T], Min) :- find_min(T, (V, E), Min).
-find_min([], Min, Min).
-find_min([(V, E)|T], (VM, EM), Min) :-
-    (V < VM ->
-    find_min(T, (V, E), Min)
-    ;
-    find_min(T, (VM, EM), Min)
-    ).
-
-% Verifica se há um vencedor na horizontal
-verificar_vitoria_horizontal(Tabuleiro, Peca) :-
-    nth1(_, Tabuleiro, Linha),
-    verificar_vitoria(Linha, Peca).
-
-% Verifica se há um vencedor na vertical
-verificar_vitoria_vertical(Tabuleiro, Peca) :-
-    transpose(Tabuleiro, TabuleiroTransposto),
-    verificar_vitoria_horizontal(TabuleiroTransposto, Peca).
-
-% Verifica se há um vencedor na diagonal
-verificar_vitoria_diagonal(Tabuleiro, Peca) :-
-    diagonal(Tabuleiro, Diagonal),
-    verificar_vitoria(Diagonal, Peca).
-
-% Retorna a diagonal principal do tabuleiro
-diagonal(Tabuleiro, Diagonal) :-
-    diagonal(Tabuleiro, Diagonal, 1).
-
-diagonal([], [], _).
-diagonal([Linha|Tabuleiro], [Celula|Diagonal], N) :-
-    nth1(N, Linha, Celula),
-    N1 is N + 1,
-    diagonal(Tabuleiro, Diagonal, N1).
-
-% Verifica se há um vencedor em uma linha ou coluna
-verificar_vitoria(Linha, Peca) :-
-    consecutivas(Consecutivas),
-    append(_, [Peca|T], Linha),
-    length([Peca|T],Consecutivas),
-    !.
-verificar_vitoria(Linha, Peca) :-
-    consecutivas(Consecutivas),
-    append(T, [Peca|_], Linha),
-    length(T, Consecutivas),
-    !.
-
-% Verifica se houve empate
-empate(Tabuleiro) :-
-    %todas_colunas_preenchidas(Tabuleiro).
-    fail.
-
-% Verifica se todas as colunas foram preenchidas
-todas_colunas_preenchidas([]).
-todas_colunas_preenchidas([ColunaTabuleiro|Tabuleiro]) :-
+joga2_v1(Tabuleiro) :-
+    largura(Largura),
     altura(Altura),
-    length(ColunaTabuleiro, Altura),
-    Altura > 0,
-    todas_colunas_preenchidas(Tabuleiro).
 
-venceu(Tabuleiro, Jogador) :-
-    % verifica linhas
-    member([Jogador,Jogador,Jogador], Tabuleiro),
-    
-    % verifica colunas
+    write('Jogador 2 (O), escolha uma coluna: '),nl,
+    read(Coluna),
+    Coluna > 0, !,
+    Coluna =< Largura, !,
+    write('Jogador 2 (O), escolha uma linha: '), nl,
+    read(Linha1),
+    Linha1 > 0, !,
+    Linha1 =< Altura, !,
+    (verifica_simbolo(Tabuleiro, Linha1, Coluna)) ->
+    troca_v1(Tabuleiro, Linha1, Coluna, NovoTabuleiro, 'O'),
+    imprime_tabuleiro(NovoTabuleiro),
+    not(vitoria_horizontal(NovoTabuleiro, Linha1, 'O', 2)),
+    not(vitoria_vertical(NovoTabuleiro, Coluna, 'O', 2)),
+    joga_v1(NovoTabuleiro);
+    write('Posicao ja preenchida, escolha outra '), nl,
+    joga2_v1(Tabuleiro).
+
+
+
+% PREDICADOS PARA A VERSAO 2
+
+procura_indice(Tabuleiro, Coluna, Indice) :-
+    nth0(Coluna, Tabuleiro, ColunaEscolhida),
+    reverse(ColunaEscolhida, ColunaInvertida),
+    length(ColunaInvertida, Tam),
+    nth0(Aux_Indice, ColunaInvertida, 'N'),
+    Indice is Tam - Aux_Indice.
+
+troca_v2(Tabuleiro, Coluna, Simbolo, NovoTabuleiro, Indice) :-
+    Coluna1 is Coluna - 1,
     transpose(Tabuleiro, Transposta),
-    member([Jogador,Jogador,Jogador], Transposta),
-    
-    % verifica diagonal principal
-    nth0(0, Tabuleiro, [Jogador,_,_]),
-    nth0(1, Tabuleiro, [_,Jogador,_]),
-    nth0(2, Tabuleiro, [_,_,Jogador]),
-    
-    % verifica diagonal secundária
-    nth0(0, Tabuleiro, [_,_,Jogador]),
-    nth0(1, Tabuleiro, [_,Jogador,_]),
-    nth0(2, Tabuleiro, [Jogador,_,_]).
-    
+    procura_indice(Transposta, Coluna1, Indice),
+    troca_v1(Tabuleiro, Indice, Coluna, NovoTabuleiro, Simbolo).
 
-% Verifica se há um vencedor
-vencedor(Tabuleiro, Peca) :-
-    fail.
-    %verificar_vitoria_horizontal(Tabuleiro, Peca).
-vencedor(Tabuleiro, Peca) :-
-    fail.
-    %verificar_vitoria_vertical(Tabuleiro, Peca).
-vencedor(Tabuleiro, Peca) :-
-    fail.
-    %verificar_vitoria_diagonal(Tabuleiro, Peca).
+
+verifica_coluna(Tabuleiro, Coluna) :-
+    transpose(Tabuleiro, Transposta),
+    Coluna1 is Coluna - 1,
+    nth0(Coluna1, Transposta, ColunaEscolhida),
+    member(Col, ColunaEscolhida),
+    Col = 'N'.
+
+joga_v2(Tabuleiro):-
+    largura(Largura),
+
+    write('Jogador 1 (X), escolha uma coluna: '), nl,
+    read(Coluna),
+    Coluna > 0, !,
+    Coluna =< Largura, !,
+    (verifica_coluna(Tabuleiro, Coluna)) ->
+    troca_v2(Tabuleiro, Coluna, 'X', NovoTabuleiro, Indice),
+    imprime_tabuleiro(NovoTabuleiro),
+    not(vitoria_horizontal(NovoTabuleiro, Indice, 'X', 1)),
+    not(vitoria_vertical(NovoTabuleiro, Coluna, 'X', 1)),
+    %empate(NovoTabuleiro),
+    joga2_v2(NovoTabuleiro);
+    write('Coluna selecionada esta cheia, selecione outra: '), nl,
+    joga_v2(Tabuleiro).
+
+joga2_v2(Tabuleiro):-
+    largura(Largura),
+
+    write('Jogador 2 (O), escolha uma coluna: '), nl,
+    read(Coluna),
+    Coluna > 0, !,
+    Coluna =< Largura, !,
+    (verifica_coluna(Tabuleiro, Coluna)) ->
+    troca_v2(Tabuleiro, Coluna, 'O', NovoTabuleiro, Indice),
+    imprime_tabuleiro(NovoTabuleiro),
+    not(vitoria_horizontal(NovoTabuleiro, Indice, 'O', 2)),
+    not(vitoria_vertical(NovoTabuleiro, Coluna, 'O', 2)),
+    %empate(NovoTabuleiro),
+    joga_v2(NovoTabuleiro);
+    write('Coluna selecionada est a cheia, selecione outra: '), nl,
+    joga2_v2(Tabuleiro).
+
+
+% PREDICADOS PARA DETERMINAR VENCEDOR
+
+% Verifica vencedor na horizontal
+vitoria_horizontal(Tabuleiro, Linha, Simbolo, Jogador) :-
+    Linha1 is Linha - 1,
+    nth0(Linha1, Tabuleiro, LinhaTeste),
+    mesmo_simbolo(LinhaTeste, Simbolo),
+    write('Vitoria do jogador: '), write(Jogador), nl,
+    write('Digite 1 para nova partida: '), nl,
+    read(NovaPartida),
+    (NovaPartida == 1)->
+    jogar.
+
+mesmo_simbolo([],_).
+mesmo_simbolo([H|T], H) :- mesmo_simbolo(T,H).
+
+% Verifica vencedor na vertical
+vitoria_vertical(Tabuleiro, Coluna, Simbolo, Jogador) :-
+    Coluna1 is Coluna - 1,
+    transpose(Tabuleiro, Transposta),
+    nth0(Coluna1, Transposta, LinhaTeste),
+    mesmo_simbolo(LinhaTeste, Simbolo),
+    write('Vitoria do jogador: '), write(Jogador), nl,
+    write('Digite 1 para nova partida: '), nl,
+    read(NovaPartida),
+    (NovaPartida == 1) ->
+    jogar.
+
+% Verifica se empatou
+empate(Tabuleiro) :-
+    member('N', Tabuleiro).
+
+%:- jogar.
+
+
+
+
+
+
+
