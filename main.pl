@@ -6,6 +6,14 @@
 
 :- use_module(library(clpfd)).
 
+limpar_console :-
+    (current_prolog_flag(windows, true) ->
+        shell('cls') % se for Windows, executa o comando "cls"
+    ;
+        shell('clear') % caso contrário, executa o comando "clear"
+    ).
+
+
 solicita_versao :-
     write('Escolha a versão do jogo: '), nl,
     write('1 - Normal'), nl,
@@ -62,6 +70,7 @@ valida_consecutivas(Consecutivas) :-
     asserta(consecutivas(Consecutivas)).
 
 jogar :-
+    limpar_console,
     % chama o predicado que solicita a versão
     solicita_versao,
 
@@ -93,6 +102,7 @@ criar_linhas(Largura, Altura, [Linha|Tabuleiro]) :-
 
 % Imprime o tabuleiro
 imprimir_tabuleiro(Tabuleiro) :-
+    limpar_console,
     imprimir_linhas(Tabuleiro).
 
 % Funcoes auxiliares para imprimir o tabuleiro, linha por linha
@@ -156,95 +166,90 @@ jogador1_joga(Tabuleiro) :-
 % Jogador 2 joga
 jogador2_joga(Tabuleiro) :-
     versao(Versao),
-    largura(Largura),
-    altura(Altura),
-
-    write('Vez do Jogador 2 (O)'),nl,
-
+     write('Vez do Jogador 2 (O)'),nl,
+        
+    % Verifica versão do jogo
     (Versao =:= 1) ->
-    write('Escolha uma coluna: '),nl,
-    read(Coluna),
-    Coluna > 0, !,
-    Coluna =< Largura, !,
-
-    write('Escolha uma linha: '), nl,
-    read(Linha1),
-    Linha1 > 0, !,
-    Linha1 =< Altura, !,
-
+    busca_astar(Tabuleiro, 'O', Linha, Coluna),
+    write('Escolheu a coluna: '),write(Coluna),nl,
+    write('Escolheu a linha: '),write(Linha),nl,
+    
     criar_tabuleiro(NovoTabuleiro),
-    troca(Tabuleiro, Linha1, Coluna, NovoTabuleiro, 'O'),
-    imprimir_tabuleiro(NovoTabuleiro),
-    jogador1_joga(NovoTabuleiro)
-
+    troca(NovoTabuleiro, Linha, Coluna, TabuleiroMod),
+    imprimir_tabuleiro(TabuleiroMod),
+    jogador1_joga(TabuleiroMod)
     ;
     (Versao =:= 2) ->
     write('Versão nao implementada'), nl.
-
-melhor_jogada(Tabuleiro, Jogador, MelhorJogada) :-
-    findall(Pos, posicao_vazia(Tabuleiro, Pos), PosicoesVazias),
-    minimax(Tabuleiro, Jogador, PosicoesVazias, [], _, MelhorJogada, _).
     
-% avalia a melhor jogada utilizando o algoritmo Minimax
-minimax(Tabuleiro, _, [], _, Pontuacao, _, _) :-
-    avalia_tabuleiro(Tabuleiro, Pontuacao).
-minimax(Tabuleiro, Jogador, [Posicao|Posicoes], Caminho, MelhorPontuacao, MelhorJogada, Profundidade) :-
-    profundidade_maxima(ProfundidadeMaxima),
-    Profundidade < ProfundidadeMaxima,
-    copia_tabuleiro(Tabuleiro, NovoTabuleiro),
-    troca(NovoTabuleiro, Posicao, Jogador, NovoTabuleiro2),
-    outro_jogador(Jogador, OutroJogador),
-    proxima_jogada(OutroJogador, ProximaJogada),
-    NovaProfundidade is Profundidade + 1,
-    minimax(NovoTabuleiro2, ProximaJogada, Posicoes, [Posicao|Caminho], Pontuacao, _, NovaProfundidade),
-    melhor_jogada(Jogador, Caminho, MelhorJogada, Pontuacao, MelhorPontuacao, Posicao, Posicoes).
+busca_astar(Tabuleiro, Peca, Linha, Coluna) :-
+    findall((L, C), (between(1, 3, L), between(1, 3, C), nth1(L, Tabuleiro, Linha), nth1(C, Linha, e)), EspacosLivres),
+    astar(Tabuleiro, Peca, EspacosLivres, (Linha, Coluna)).
+        
+% Cálculo da heurística h
+h(Tabuleiro, Peca, (L, C), H) :-
+    % Define as possíveis linhas, colunas e diagonais que podem ser formadas passando pelo espaço livre (L, C)
+    nth1(L, Tabuleiro, Linha),
+    transpose(Tabuleiro, Transposta),
+    nth1(C, Transposta, Coluna),
+    diagonal(Tabuleiro, DiagonalPrincipal),
+    diagonal(reverse(Tabuleiro), DiagonalSecundaria),
     
-% encontra a melhor jogada para o jogador 2
-melhor_jogada('O', [], MelhorJogada, _, _, MelhorJogada, _).
-melhor_jogada('O', [Jogada|Caminho], MelhorJogadaAtual, PontuacaoAtual, MelhorPontuacao, _, _) :-
-    avalia_jogada('O', Jogada, Pontuacao),
-    (Pontuacao > PontuacaoAtual ->
-        melhor_jogada('O', Caminho, Jogada, Pontuacao, MelhorPontuacao, _, _)
+    % Verifica quantas peças iguais consecutivas existem para cada linha, coluna e diagonal
+    findall(Consecutivas, (member(Seq, [Linha, Coluna, DiagonalPrincipal, DiagonalSecundaria]), verifica_consecutivas(Seq, Peca, Consecutivas)), NumConsecutivas),
+    max_list(NumConsecutivas, H).
+        
+% Testa se existem Consecutivas peças iguais consecutivas
+verifica_consecutivas(Seq, Peca, Consecutivas) :-
+    consecutivas(Consec),
+    findall(Peca, nth1(_, Seq, Peca), Ocorrencias),
+    one_or_more_occur(Ocorrencias, Consec, false, true),
+    consecutivas == Consecutivas.
+        
+% Função auxiliar para verificar se um número mínimo de ocorrências de um elemento em uma lista foi atingido
+one_or_more_occur(_, 1, _, true) :- !.
+one_or_more_occur([], _, _, false) :- !.
+one_or_more_occur([H|T], N, Prev, Found) :-
+    (H == Prev ->
+    M is N - 1,
+    one_or_more_occur(T, M, H, Found)
     ;
-        melhor_jogada('O', Caminho, MelhorJogadaAtual, PontuacaoAtual, MelhorPontuacao, _, _)
-    ).
-    
-% encontra a melhor jogada para o jogador 1
-melhor_jogada('X', [], MelhorJogada, _, _, MelhorJogada, _).
-melhor_jogada('X', [Jogada|Caminho], MelhorJogadaAtual, PontuacaoAtual, MelhorPontuacao, _, _) :-
-    avalia_jogada('X', Jogada, Pontuacao),
-    (Pontuacao < PontuacaoAtual ->
-        melhor_jogada('X', Caminho, Jogada, Pontuacao, MelhorPontuacao, _, _)
-    ;
-        melhor_jogada('X', Caminho, MelhorJogadaAtual, PontuacaoAtual, MelhorPontuacao, _, _)
+    one_or_more_occur(T, N, H, Found)
     ).
 
-avalia_tabuleiro(Tabuleiro, Pontuacao) :-
-    % Verifica se algum jogador venceu
-    venceu(Tabuleiro, 'X'), Pontuacao is -100;
-    venceu(Tabuleiro, 'O'), Pontuacao is 100;
+% Implementação do A*
+astar(Tabuleiro, Peca, EspacosLivres, (Linha, Coluna)) :-
+    % Define o espaço livre com menor custo
+    maplist(h(Tabuleiro, Peca), EspacosLivres, HS),
+    maplist(length, EspacosLivres, GS),
+    sum_list(HS, SHS),
+    sum_list(GS, SGS),
+    find_min([(SHS + SGS, Espaco)|_]), % Ordena pelo menor custo
     
-    % Verifica se o jogo empatou
-    jogo_empatado(Tabuleiro), Pontuacao is 0;
-    
-    % Caso contrário, calcula a pontuação baseada na quantidade de peças em jogo
-    % do jogador e do adversário
-    count_ocorrencias(Tabuleiro, 'O', QtdO),
-    count_ocorrencias(Tabuleiro, 'X', QtdX),
-    Pontuacao is QtdO - QtdX.
-
-count_ocorrencias(Tabuleiro, Simbolo, Qtd) :-
-    flatten(Tabuleiro, TabuleiroAchatado),
-    include(=(Simbolo), TabuleiroAchatado, Ocorrencias),
-    length(Ocorrencias, Qtd).
-    
-
-% Retorna a posição vazia (com valor ' ') em uma coluna específica
-posicao_vazia(Tabuleiro, Posicao) :-
-    nth0(Linha, Tabuleiro, LinhaTabuleiro),
-    nth0(Coluna, LinhaTabuleiro, Vazio),
-    Vazio == ' ',
-    Posicao = [Linha, Coluna].
+    % Troca a peça no espaço livre e verifica se houve vitória ou empate
+    troca(Tabuleiro, Linha, Coluna, NovoTabuleiro, Peca),
+    (venceu(NovoTabuleiro, Peca) ->
+    Linha = Linha, Coluna = Coluna
+    ;
+    (empate(NovoTabuleiro) ->
+    Linha = Linha, Coluna = Coluna
+    ;
+    % Continua a busca recursivamente com o novo tabuleiro e os espaços livres restantes
+    delete(EspacosLivres, (Linha, Coluna), NovosEspacosLivres),
+    astar(NovoTabuleiro, Peca, NovosEspacosLivres, (L, C)),
+    Linha = L, Coluna = C
+    )
+    ).
+        
+% Função auxiliar para encontrar o mínimo em uma lista de pares (Valor, Elemento)
+find_min([(V, E)|T], Min) :- find_min(T, (V, E), Min).
+find_min([], Min, Min).
+find_min([(V, E)|T], (VM, EM), Min) :-
+    (V < VM ->
+    find_min(T, (V, E), Min)
+    ;
+    find_min(T, (VM, EM), Min)
+    ).
 
 % Verifica se há um vencedor na horizontal
 verificar_vitoria_horizontal(Tabuleiro, Peca) :-
