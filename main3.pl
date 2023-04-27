@@ -59,22 +59,14 @@ print_linha([Simbolo|Simbolos]) :-
     write(' '),
     print_linha(Simbolos).
 
-% Predicado que tenta buscar simbolo na posicao m x n do tabuleiro
-verifica_simbolo(Tabuleiro, Linha, Coluna):-
-    nth1(Linha, Tabuleiro, LinhaTabuleiro),
-    nth1(Coluna, LinhaTabuleiro, PosSim),
-    not(simbolo(PosSim)).
 
-
-
-% PREDICADOS PARA A VERSAO 1 DO JOGO DA VELHA
 % Predicado para substituir um elemento em uma posição específica
-troca_v1([Linha|Linhas], 1, Coluna, [NovaLinha|Linhas], Simbolo) :-
+troca([Linha|Linhas], 1, Coluna, [NovaLinha|Linhas], Simbolo) :-
     troca_linha(Linha, Coluna, Simbolo, NovaLinha).
-troca_v1([Linha|Linhas], NumLinha, Coluna, [Linha|NovasLinhas], Simbolo) :-
+troca([Linha|Linhas], NumLinha, Coluna, [Linha|NovasLinhas], Simbolo) :-
     NumLinha > 1,
     NumLinha1 is NumLinha - 1,
-    troca_v1(Linhas, NumLinha1, Coluna, NovasLinhas, Simbolo).
+    troca(Linhas, NumLinha1, Coluna, NovasLinhas, Simbolo).
 
 % Predicado para substituir um elemento em uma linha específica
 troca_linha([_|Colunas], 1, Simbolo, [Simbolo|Colunas]).
@@ -82,6 +74,14 @@ troca_linha([Coluna|Colunas], NumColuna, Simbolo, [Coluna|NovasColunas]) :-
     NumColuna =\= 1,
     NumColuna1 is NumColuna - 1,
     troca_linha(Colunas, NumColuna1, Simbolo, NovasColunas).
+
+% PREDICADOS PARA A VERSAO 1 DO JOGO DA VELHA
+
+% Predicado que tenta buscar simbolo na posicao m x n do tabuleiro
+verifica_simbolo(Tabuleiro, Linha, Coluna):-
+    nth1(Linha, Tabuleiro, LinhaTabuleiro),
+    nth1(Coluna, LinhaTabuleiro, PosSim),
+    not(simbolo(PosSim)).
 
 % Predicado para fazer jogada
 joga_v1(Altura, Largura, Consecutivas, Tabuleiro) :-
@@ -94,7 +94,7 @@ joga_v1(Altura, Largura, Consecutivas, Tabuleiro) :-
     Linha1 > 0, !,
     Linha1 =< Altura, !,
     (verifica_simbolo(Tabuleiro, Linha1, Coluna)) ->
-    troca_v1(Tabuleiro, Linha1, Coluna, NovoTabuleiro, 'X'),
+    troca(Tabuleiro, Linha1, Coluna, NovoTabuleiro, 'X'),
     imprime_tabuleiro(NovoTabuleiro),
     not(vitoria_horizontal(NovoTabuleiro, Linha1, 'X', 1)),
     not(vitoria_vertical(NovoTabuleiro, Coluna, 'X', 1)),
@@ -114,7 +114,7 @@ joga2_v1(Altura, Largura, Consecutivas, Tabuleiro) :-
     Linha1 > 0, !,
     Linha1 =< Altura, !,
     (verifica_simbolo(Tabuleiro, Linha1, Coluna)) ->
-    troca_v1(Tabuleiro, Linha1, Coluna, NovoTabuleiro, 'O'),
+    troca(Tabuleiro, Linha1, Coluna, NovoTabuleiro, 'O'),
     imprime_tabuleiro(NovoTabuleiro),
     not(vitoria_horizontal(NovoTabuleiro, Linha1, 'O', 2)),
     not(vitoria_vertical(NovoTabuleiro, Coluna, 'O', 2)),
@@ -138,7 +138,7 @@ troca_v2(Tabuleiro, Coluna, Simbolo, NovoTabuleiro, Indice) :-
     Coluna1 is Coluna - 1,
     transpose(Tabuleiro, Transposta),
     procura_indice(Transposta, Coluna1, Indice),
-    troca_v1(Tabuleiro, Indice, Coluna, NovoTabuleiro, Simbolo).
+    troca(Tabuleiro, Indice, Coluna, NovoTabuleiro, Simbolo).
 
 
 verifica_coluna(Tabuleiro, Coluna) :-
