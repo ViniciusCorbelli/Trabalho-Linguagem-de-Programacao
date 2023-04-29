@@ -1,7 +1,7 @@
 % variável global
 :- dynamic versao/1.
-:- dynamic largura/1.
 :- dynamic altura/1.
+:- dynamic largura/1.
 :- dynamic consecutivas/1.
 
 :- use_module(library(clpfd)).
@@ -33,21 +33,8 @@ valida_versao(Versao) :-
     % armazena o valor da versao na variável global
     asserta(versao(Versao)).
 
-solicita_largura :-
-    write('Digite a quantidade de linhas: '), nl,
-    read(Largura),
-    valida_largura(Largura).
-
-valida_largura(Largura) :-
-    Largura < 1 ->
-    write('Largura inválida. Tente novamente.'), nl,
-    solicita_largura
-    ;
-    % armazena o valor da largura na variável global
-    asserta(largura(Largura)).
-
 solicita_altura :-
-    write('Digite a quantidade de colunas: '), nl,
+    write('Digite a quantidade de linhas: '), nl,
     read(Altura),
     valida_altura(Altura).
 
@@ -57,7 +44,9 @@ valida_altura(Altura) :-
     solicita_altura
     ;
     % armazena o valor da altura na variável global
-    asserta(altura(Altura)).
+    asserta(altura(Altura)),
+    Largura is Altura + 1,
+    asserta(largura(Largura)).
 
 solicita_consecutivas :-
     write('Digite a quantidade de peças repetidas para ganhar: '), nl,
@@ -74,9 +63,6 @@ jogar :-
     limpar_console,
     % chama o predicado que solicita a versão
     solicita_versao,
-
-    % chama o predicado que solicita a largura
-    solicita_largura,
 
     % chama o predicado que solicita a altura
     solicita_altura,
@@ -101,13 +87,13 @@ simbolo('O').
 
 % Predicado para criar tabuleiro
 cria_tabuleiro(Tabuleiro) :-
-    largura(Largura),
     altura(Altura),
+    largura(Largura),
 
-    length(Tabuleiro, Largura),
-    maplist(length_(Altura), Tabuleiro).
-length_(Altura, Tabuleiro) :-
     length(Tabuleiro, Altura),
+    maplist(length_(Largura), Tabuleiro).
+length_(Largura, Tabuleiro) :-
+    length(Tabuleiro, Largura),
     maplist(nulo, Tabuleiro).
 nulo('N').
 
@@ -139,12 +125,12 @@ verifica_simbolo(Tabuleiro, Linha, Coluna):-
 
 % PREDICADOS PARA A VERSAO 1 DO JOGO DA VELHA
 % Predicado para substituir um elemento em uma posição específica
-troca_v1([Linha|Linhas], 1, Coluna, [NovaLinha|Linhas], Simbolo) :-
+troca([Linha|Linhas], 1, Coluna, [NovaLinha|Linhas], Simbolo) :-
     troca_linha(Linha, Coluna, Simbolo, NovaLinha).
-troca_v1([Linha|Linhas], NumLinha, Coluna, [Linha|NovasLinhas], Simbolo) :-
+troca([Linha|Linhas], NumLinha, Coluna, [Linha|NovasLinhas], Simbolo) :-
     NumLinha > 1,
     NumLinha1 is NumLinha - 1,
-    troca_v1(Linhas, NumLinha1, Coluna, NovasLinhas, Simbolo).
+    troca(Linhas, NumLinha1, Coluna, NovasLinhas, Simbolo).
 
 % Predicado para substituir um elemento em uma linha específica
 troca_linha([_|Colunas], 1, Simbolo, [Simbolo|Colunas]).
@@ -155,50 +141,52 @@ troca_linha([Coluna|Colunas], NumColuna, Simbolo, [Coluna|NovasColunas]) :-
 
 % Predicado para fazer jogada
 joga_v1(Tabuleiro) :-
-    largura(Largura),
     altura(Altura),
+    largura(Largura),
     consecutivas(Consecutivas),
 
-    write('Jogador 1 (X), escolha uma coluna: '),nl,
+    write('Escolha uma coluna: '),nl,
     read(Coluna),
+
     Coluna > 0, !,
-    Coluna =< Largura, !,
-    write('Jogador 1 (X), escolha uma linha: '), nl,
-    read(Linha1),
-    Linha1 > 0, !,
-    Linha1 =< Altura, !,
-    (verifica_simbolo(Tabuleiro, Linha1, Coluna)) ->
-    troca_v1(Tabuleiro, Linha1, Coluna, NovoTabuleiro, 'X'),
+    Coluna =< Altura, !,
+
+    write('Escolha uma linha: '), nl,
+    read(Linha),
+
+    Linha > 0, !,
+    Linha =< Largura, !,
+
+    (verifica_simbolo(Tabuleiro, Linha, Coluna)) ->
+    troca(Tabuleiro, Linha, Coluna, NovoTabuleiro, 'X'),
     imprime_tabuleiro(NovoTabuleiro),
-    not(vitoria_horizontal(NovoTabuleiro, Linha1, 'X', 1)),
-    not(vitoria_vertical(NovoTabuleiro, Coluna, 'X', 1)),
+    not(verifica_vitoria(NovoTabuleiro, 'X', 2, Coluna, Linha)),
     joga2_v1(NovoTabuleiro);
     write('Posicao ja preenchida, escolha outra '), nl,
     joga_v1(Tabuleiro).
 
 % Jogador 2 joga
 joga2_v1(Tabuleiro) :-
-    largura(Largura),
     altura(Altura),
+    largura(Largura),
+    
+    %% Encontra a primeira posição vazia em que o jogador 2 pode jogar e vencer
+    linha_coluna_N(Tabuleiro, Linha, Coluna),
 
-    write('Jogador 2 (O), escolha uma coluna: '),nl,
-    read(Coluna),
-    Coluna > 0, !,
-    Coluna =< Largura, !,
-    write('Jogador 2 (O), escolha uma linha: '), nl,
-    read(Linha1),
-    Linha1 > 0, !,
-    Linha1 =< Altura, !,
-    (verifica_simbolo(Tabuleiro, Linha1, Coluna)) ->
-    troca_v1(Tabuleiro, Linha1, Coluna, NovoTabuleiro, 'O'),
+    (verifica_simbolo(Tabuleiro, Linha, Coluna)) ->
+    troca(Tabuleiro, Linha, Coluna, NovoTabuleiro, 'O'),
     imprime_tabuleiro(NovoTabuleiro),
-    not(vitoria_horizontal(NovoTabuleiro, Linha1, 'O', 2)),
-    not(vitoria_vertical(NovoTabuleiro, Coluna, 'O', 2)),
+    not(verifica_vitoria(NovoTabuleiro, 'O', 2, Coluna, Linha)),
     joga_v1(NovoTabuleiro);
     write('Posicao ja preenchida, escolha outra '), nl,
     joga2_v1(Tabuleiro).
 
-
+linha_coluna_N(Tabuleiro, Linha, Coluna) :-
+    altura(Altura),
+    between(1, Altura, Linha),
+    nth1(Linha, Tabuleiro, LinhaTabuleiro),
+    nth1(Coluna, LinhaTabuleiro, 'N').
+    
 
 % PREDICADOS PARA A VERSAO 2
 
@@ -213,7 +201,7 @@ troca_v2(Tabuleiro, Coluna, Simbolo, NovoTabuleiro, Indice) :-
     Coluna1 is Coluna - 1,
     transpose(Tabuleiro, Transposta),
     procura_indice(Transposta, Coluna1, Indice),
-    troca_v1(Tabuleiro, Indice, Coluna, NovoTabuleiro, Simbolo).
+    troca(Tabuleiro, Indice, Coluna, NovoTabuleiro, Simbolo).
 
 
 verifica_coluna(Tabuleiro, Coluna) :-
@@ -224,37 +212,34 @@ verifica_coluna(Tabuleiro, Coluna) :-
     Col = 'N'.
 
 joga_v2(Tabuleiro):-
-    largura(Largura),
+    altura(Altura),
 
-    write('Jogador 1 (X), escolha uma coluna: '), nl,
+    write('Escolha uma coluna: '), nl,
     read(Coluna),
     Coluna > 0, !,
-    Coluna =< Largura, !,
+    Coluna =< Altura, !,
+
     (verifica_coluna(Tabuleiro, Coluna)) ->
     troca_v2(Tabuleiro, Coluna, 'X', NovoTabuleiro, Indice),
     imprime_tabuleiro(NovoTabuleiro),
-    not(vitoria_horizontal(NovoTabuleiro, Indice, 'X', 1)),
-    not(vitoria_vertical(NovoTabuleiro, Coluna, 'X', 1)),
-    %empate(NovoTabuleiro),
+    not(verifica_vitoria(NovoTabuleiro, 'X', 1, Coluna, Altura)),
     joga2_v2(NovoTabuleiro);
     write('Coluna selecionada esta cheia, selecione outra: '), nl,
     joga_v2(Tabuleiro).
 
 joga2_v2(Tabuleiro):-
+    altura(Altura),
     largura(Largura),
+    
+    %% Encontra a primeira posição vazia em que o jogador 2 pode jogar e vencer
+    linha_coluna_N(Tabuleiro, Linha, Coluna),
 
-    write('Jogador 2 (O), escolha uma coluna: '), nl,
-    read(Coluna),
-    Coluna > 0, !,
-    Coluna =< Largura, !,
-    (verifica_coluna(Tabuleiro, Coluna)) ->
-    troca_v2(Tabuleiro, Coluna, 'O', NovoTabuleiro, Indice),
+    (verifica_simbolo(Tabuleiro, Linha, Coluna)) ->
+    troca_v2(Tabuleiro, Coluna, NovoTabuleiro, 'O'),
     imprime_tabuleiro(NovoTabuleiro),
-    not(vitoria_horizontal(NovoTabuleiro, Indice, 'O', 2)),
-    not(vitoria_vertical(NovoTabuleiro, Coluna, 'O', 2)),
-    %empate(NovoTabuleiro),
+    not(verifica_vitoria(NovoTabuleiro, 'O', 2, Coluna, Linha)),
     joga_v2(NovoTabuleiro);
-    write('Coluna selecionada est a cheia, selecione outra: '), nl,
+    write('Posicao ja preenchida, escolha outra '), nl,
     joga2_v2(Tabuleiro).
 
 
@@ -286,15 +271,60 @@ vitoria_vertical(Tabuleiro, Coluna, Simbolo, Jogador) :-
     (NovaPartida == 1) ->
     jogar.
 
+% Verifica vencedor nas diagonais
+vitoria_diagonal(Tabuleiro, Simbolo, Jogador, Largura):-
+    pega_diagonal1(Tabuleiro, 1, Diagonal1),
+    pega_diagonal1(Tabuleiro, 2, Diagonal2),
+    pega_diagonal2(Tabuleiro, Largura, Diagonal3),
+    Largura1 is Largura - 1,
+    pega_diagonal2(Tabuleiro, Largura1, Diagonal4),
+    (mesmo_simbolo(Diagonal1, Simbolo); mesmo_simbolo(Diagonal2, Simbolo); mesmo_simbolo(Diagonal3, Simbolo) ; mesmo_simbolo(Diagonal4, Simbolo)) ->
+    write('Vitoria do jogador: '), write(Jogador), nl,
+    jogar;
+    fail.
+
+% Predicado que pega a diagonal principal mais a diagonal que comeca em
+% coluna + 1.
+pega_diagonal1(Tabuleiro, Indice, Diagonal) :-
+    pega_diagonal_aux1(Tabuleiro, Indice, Diagonal).
+
+pega_diagonal_aux1([], _, []).
+pega_diagonal_aux1([Linha|OutrasLinhas], Indice, [Elemento|DiagonalRestante]) :-
+    nth1(Indice, Linha, Elemento),
+    NovoIndice is Indice + 1,
+    pega_diagonal_aux1(OutrasLinhas, NovoIndice, DiagonalRestante).
+
+% Predicado que pega a diagonal secund�ria mais a diagonal que come�a em
+% coluna - 1.
+pega_diagonal2(Tabuleiro, Indice, Diagonal) :-
+    pega_diagonal_aux2(Tabuleiro, Indice, Diagonal).
+
+pega_diagonal_aux2([], _, []).
+pega_diagonal_aux2([Linha|OutrasLinhas], Indice, [Elemento|DiagonalRestante]) :-
+    nth1(Indice, Linha, Elemento),
+    NovoIndice is Indice - 1,
+    pega_diagonal_aux2(OutrasLinhas, NovoIndice, DiagonalRestante).
+
+% Verifica vencedor
+verifica_vitoria(Tabuleiro, Simbolo, Jogador, Coluna, Linha) :-
+    vitoria_vertical(Tabuleiro, Coluna, Simbolo, Jogador),
+    Vencedor = Simbolo.
+    
+verifica_vitoria(Tabuleiro, Simbolo, Vencedor, Coluna, Linha) :-
+    vitoria_horizontal(Tabuleiro, Linha, Simbolo, Jogador),
+    Vencedor = Simbolo.
+    
+verifica_vitoria(Tabuleiro, Simbolo, Vencedor, Coluna, Linha) :-
+    vitoria_diagonal(Tabuleiro, Simbolo, Jogador, Linha),
+    Vencedor = Simbolo.
+
+/*verifica_vitoria(Tabuleiro, Simbolo, Vencedor, Coluna, Linha) :-
+    empate(Tabuleiro),
+    Vencedor = Simbolo.*/
+    
 % Verifica se empatou
 empate(Tabuleiro) :-
+    write('Jogo empatou'), nl,
     member('N', Tabuleiro).
 
-%:- jogar.
-
-
-
-
-
-
-
+:- jogar.
