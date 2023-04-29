@@ -169,9 +169,10 @@ joga_v1(Tabuleiro) :-
 joga2_v1(Tabuleiro) :-
     altura(Altura),
     largura(Largura),
+    consecutivas(Consecutivas),
     
     %% Encontra a primeira posição vazia em que o jogador 2 pode jogar e vencer
-    linha_coluna_N(Tabuleiro, Linha, Coluna),
+    possivel_vitoria(Tabuleiro, Linha, Coluna),
 
     (verifica_simbolo(Tabuleiro, Linha, Coluna)) ->
     troca(Tabuleiro, Linha, Coluna, NovoTabuleiro, 'O'),
@@ -180,13 +181,6 @@ joga2_v1(Tabuleiro) :-
     joga_v1(NovoTabuleiro);
     write('Posicao ja preenchida, escolha outra '), nl,
     joga2_v1(Tabuleiro).
-
-linha_coluna_N(Tabuleiro, Linha, Coluna) :-
-    altura(Altura),
-    between(1, Altura, Linha),
-    nth1(Linha, Tabuleiro, LinhaTabuleiro),
-    nth1(Coluna, LinhaTabuleiro, 'N').
-    
 
 % PREDICADOS PARA A VERSAO 2
 
@@ -230,16 +224,16 @@ joga_v2(Tabuleiro):-
 joga2_v2(Tabuleiro):-
     altura(Altura),
     largura(Largura),
-    
+
     %% Encontra a primeira posição vazia em que o jogador 2 pode jogar e vencer
-    linha_coluna_N(Tabuleiro, Linha, Coluna),
+    possivel_vitoria(Tabuleiro, Linha, Coluna),
 
     (verifica_simbolo(Tabuleiro, Linha, Coluna)) ->
     troca_v2(Tabuleiro, Coluna, NovoTabuleiro, 'O'),
     imprime_tabuleiro(NovoTabuleiro),
     not(verifica_vitoria(NovoTabuleiro, 'O', 2, Coluna, Linha)),
     joga_v2(NovoTabuleiro);
-    write('Posicao ja preenchida, escolha outra '), nl,
+    write('Coluna selecionada esta cheia, selecione outra: '), nl,
     joga2_v2(Tabuleiro).
 
 
@@ -326,5 +320,30 @@ verifica_vitoria(Tabuleiro, Simbolo, Vencedor, Coluna, Linha) :-
 empate(Tabuleiro) :-
     write('Jogo empatou'), nl,
     member('N', Tabuleiro).
+
+possivel_vitoria(Tabuleiro, Linha, Coluna) :-
+    altura(Altura),
+    between(1, Altura, Linha),
+    nth1(Linha, Tabuleiro, LinhaTabuleiro),
+    nth1(Coluna, LinhaTabuleiro, 'N').
+
+possivel_vitoria(Tabuleiro, Linha, Coluna) :-
+    altura(Altura),
+    consecutivas(Consecutivas),
+    % verifica todas as linhas
+    between(1, Altura, Linha),
+    nth1(Linha, Tabuleiro, LinhaTabuleiro),
+    % procura sequencias de peças do mesmo jogador
+    append(, [Simbolo|SeqRestante], LinhaTabuleiro),
+    same(Simbolo, SeqRestante, Consecutivas),
+    % procura posição vazia após a sequencia
+    append(, [Simbolo|SeqFinal], LinhaTabuleiro),
+    length(SeqFinal, RestoSeq),
+    RestoSeq >= Consecutivas,
+    append(Prefixo, [Posicao|_], SeqFinal),
+    length(Prefixo, Consecutivas),
+    Posicao = ‘N’,
+    % encontra coluna correspondente
+    nth1(Coluna, LinhaTabuleiro, ‘N’).
 
 :- jogar.
