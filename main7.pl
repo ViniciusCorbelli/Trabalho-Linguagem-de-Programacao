@@ -151,7 +151,6 @@ joga_v1(Altura, Largura, Consecutivas, Tabuleiro, Linha, Coluna) :-
     (verifica_simbolo(Tabuleiro, Linha, Coluna)) ->
     mostra_aviso('1'),
     troca(Tabuleiro, Linha, Coluna, NovoTabuleiro, 'X'),
-    imprime_tabuleiro_v1(Altura, Largura, Consecutivas, NovoTabuleiro).
     not(vitoria_horizontal(NovoTabuleiro, Linha, 'X', 1)),
     not(vitoria_vertical(NovoTabuleiro, Coluna, 'X', 1)),
     not(vitoria_diagonal(NovoTabuleiro, 'X', 1, Largura)),
@@ -195,7 +194,6 @@ verifica_coluna(Tabuleiro, Coluna) :-
 joga_v2(Altura, Largura, Consecutivas, Tabuleiro, Coluna) :-
     (verifica_simbolo(Tabuleiro, Linha, Coluna)) ->
     troca_v2(Tabuleiro, Coluna, 'X', NovoTabuleiro, Indice),
-    imprime_tabuleiro(NovoTabuleiro),
     not(vitoria_horizontal(NovoTabuleiro, Linha, 'X', 1)),
     not(vitoria_vertical(NovoTabuleiro, Coluna, 'X', 1)),
     not(vitoria_diagonal(NovoTabuleiro, 'X', 1, Largura)),
