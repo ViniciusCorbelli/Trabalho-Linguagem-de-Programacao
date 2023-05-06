@@ -111,9 +111,9 @@ joga2_v1(Altura, Largura, Consecutivas, Tabuleiro) :-
     write('O jogador 2 fez uma jogada'), nl,
     nl,
     imprime_tabuleiro(NovoTabuleiro),
-    not(vitoria_horizontal(NovoTabuleiro, Linha, 'O', 1)),
-    not(vitoria_vertical(NovoTabuleiro, Coluna, 'O', 1)),
-    not(vitoria_diagonal(NovoTabuleiro, 'O', 1, Largura)),
+    not(vitoria_horizontal(NovoTabuleiro, Linha, 'O', 2)),
+    not(vitoria_vertical(NovoTabuleiro, Coluna, 'O', 2)),
+    not(vitoria_diagonal(NovoTabuleiro, 'O', 2, Largura)),
     joga_v1(Altura, Largura, Consecutivas, NovoTabuleiro).
 
 % PREDICADOS PARA A VERSAO 2
@@ -253,9 +253,9 @@ jogada_vencedora(Tabuleiro, Altura, Largura, Consecutivas, Linha, Coluna) :-
              between(1, Largura, C),
              verifica_simbolo(Tabuleiro, L, C),
              troca(Tabuleiro, L, C, NovoTabuleiro, 'O'),
-             (vitoria_horizontal(NovoTabuleiro, L, 'O', Consecutivas);
-              vitoria_vertical(NovoTabuleiro, C, 'O', Consecutivas);
-              vitoria_diagonal(NovoTabuleiro, 'O', Consecutivas, Largura))),
+             (vitoria_horizontal_aux(NovoTabuleiro, L, 'O', 2);
+              vitoria_vertical_aux(NovoTabuleiro, C, 'O', 2);
+              vitoria_diagonal(NovoTabuleiro, 'O', 2, Largura))),
             JogadasVitoria),
     (   member([Linha, Coluna], JogadasVitoria),
         ! % se houver uma jogada que leva à vitória imediata, retorne essa jogada
@@ -283,20 +283,57 @@ pontuacao_jogada(Tabuleiro, Altura, Largura, Consecutivas, Linha, Coluna, Jogada
     troca(Tabuleiro, Linha, Coluna, NovoTabuleiro, 'O'),
     findall(P,
             (member([L, C], JogadasValidas),
-             troca(NovoTabuleiro, L, C, NovoTabuleiro2, 'X'),
-             (vitoria_horizontal(NovoTabuleiro2, L, 'X', Consecutivas);
-              vitoria_vertical(NovoTabuleiro2, C, 'X', Consecutivas);
-              vitoria_diagonal(NovoTabuleiro2, 'X', Consecutivas, Largura)),
+             troca(NovoTabuleiro, L, C, NovoTabuleiro2, 'O'),
+             (vitoria_horizontal_aux(NovoTabuleiro2, L, 'O', Consecutivas);
+              vitoria_vertical_aux(NovoTabuleiro2, C, 'O', Consecutivas);
+              vitoria_diagonal_aux(NovoTabuleiro2, 'O', C, L, Consecutivas, Altura, Largura)),
              P),
             Pontos),
     length(Pontos, NumPontos),
     Pontuacao is NumPontos / (Altura * Largura).
 
+
+vitoria_horizontal_aux(Tabuleiro, Linha, Simbolo, Consecutivas) :-
+    nth1(Linha, Tabuleiro, LinhaTabuleiro),
+    append(_, Prefixo, LinhaTabuleiro),
+    append(Simbolos, _, Prefixo),
+    length(Simbolos, Contagem),
+    Contagem >= Consecutivas,
+    maplist(=(Simbolo), Simbolos).
+
+
+vitoria_vertical_aux(Tabuleiro, Coluna, Simbolo, Consecutivas) :-
+    transpose(Tabuleiro, TabuleiroTransposto),
+    vitoria_horizontal_aux(TabuleiroTransposto, Coluna, Simbolo, Consecutivas).
+
+vitoria_diagonal_aux(Tabuleiro, Simbolo, C, L, Consecutivas, Altura, Largura) :-
+    % verifica diagonal principal
+    nth1(1, Tabuleiro, Linha1),
+    nth1(C, Linha1, PosSim),
+    PosSim == Simbolo,
+    LinhaIni is L - C + 1,
+    LinhaFim is Altura - C + L,
+    ColunaIni is 1,
+    ColunaFim is Largura - Altura + L + C - 1,
+    verifica_diagonal(Tabuleiro, Simbolo, LinhaIni, ColunaIni, LinhaFim, ColunaFim, 1, Consecutivas);
+    % verifica diagonal secundária
+    LarguraAux is Largura - 1,
+    nth1(1, Tabuleiro, Linha2),
+    nth1(LarguraAux, Linha2, PosSim2),
+    PosSim2 == Simbolo,
+    LinhaIni2 is L - C + 1,
+    LinhaFim2 is Altura - C + L,
+    ColunaIni2 is Largura - Altura + L + C - 1,
+    ColunaFim2 is Largura - C,
+    verifica_diagonal(Tabuleiro, Simbolo, LinhaIni2, ColunaIni2, LinhaFim2, ColunaFim2, 1, Consecutivas).
+    
+verifica_diagonal(_, _, LinhaIni, _, LinhaFim, _, Consecutivas, Consecutivas) :-
+    LinhaIni > LinhaFim.
+verifica_diagonal(Tabuleiro, Simbolo, LinhaIni, ColunaIni, LinhaFim, ColunaFim, Cont, Consecutivas) :-
+    nth1(LinhaIni, Tabuleiro, Linha),
+    nth1(ColunaIni, Linha, PosSim),
+    PosSim == Simbolo,
+    Cont1 is Cont + 1,
+    (Cont1 >= Consecutivas -> true ; (LinhaIni1 is LinhaIni + 1, ColunaIni1 is ColunaIni + 1, verifica_diagonal(Tabuleiro, Simbolo, LinhaIni1, ColunaIni1, LinhaFim, ColunaFim, Cont1, Consecutivas))).
+
 %:- jogar.
-
-
-
-
-
-
-
