@@ -1,3 +1,6 @@
+% Aloízio Pita de Castro Júnior - 201365006C
+% Vinícius de Oliveira Corbelli - 202065093C
+
 :- use_module(library(clpfd)).
 
 % Predicado principal do jogo
@@ -154,10 +157,9 @@ joga_v2(Altura, Largura, Consecutivas, Tabuleiro):-
     write('Coluna selecionada esta cheia, selecione outra: '), nl,
     joga_v2(Altura, Largura, Consecutivas, Tabuleiro).
 
-joga2_v2(Altura, Largura, Consecutivas, Tabuleiro):-
+joga2_v2(Altura, Largura, Consecutivas, Tabuleiro) :-
     % Encontra a primeira posição vazia em que o jogador 2 pode jogar e vencer
-    jogada_vencedora(Tabuleiro, Altura, Largura, Consecutivas, Linha, Coluna),
-    (verifica_coluna(Tabuleiro, Coluna)) ->
+    jogada_vencedora_v2(Tabuleiro, Altura, Largura, Consecutivas, Linha, Coluna),
     troca_v2(Tabuleiro, Coluna, 'O', NovoTabuleiro, Indice),
     write('O jogador 2 fez uma jogada'), nl,
     nl,
@@ -165,10 +167,7 @@ joga2_v2(Altura, Largura, Consecutivas, Tabuleiro):-
     not(vitoria_horizontal(NovoTabuleiro, Indice, 'O', 2)),
     not(vitoria_vertical(NovoTabuleiro, Coluna, 'O', 2)),
     not(vitoria_diagonal(NovoTabuleiro, 'O', 2, Largura)),
-    empate(NovoTabuleiro),
-    joga_v2(Altura, Largura, Consecutivas, NovoTabuleiro);
-    write('Coluna selecionada esta cheia, selecione outra: '), nl,
-    joga2_v2(Altura, Largura, Consecutivas, Tabuleiro).
+    joga_v2(Altura, Largura, Consecutivas, NovoTabuleiro).
 
 
 % PREDICADOS PARA DETERMINAR VENCEDOR
@@ -279,6 +278,33 @@ jogada_vencedora(Tabuleiro, Altura, Largura, Consecutivas, Linha, Coluna) :-
         member([Linha, Coluna, _], ReverseJogadasPontuadas)
     ).
 
+jogada_vencedora_v2(Tabuleiro, Altura, Largura, Consecutivas, Linha, Coluna) :-
+    findall([C],
+            (between(1, Largura, C),
+             verifica_coluna(Tabuleiro, C),
+             troca_v2(Tabuleiro, C, 'O', NovoTabuleiro, L),
+             (vitoria_horizontal_aux(NovoTabuleiro, L, 'O', 2);
+              vitoria_vertical_aux(NovoTabuleiro, C, 'O', 2);
+              vitoria_diagonal(NovoTabuleiro, 'O', 2, Largura))),
+            JogadasVitoria),
+    (   member([Coluna], JogadasVitoria),
+        ! % se houver uma jogada que leva à vitória imediata, retorne essa jogada
+        ;
+        % caso contrário, escolha a jogada que maximize as chances de vencer no próximo turno
+
+        findall(C, (between(1, Largura, C), coluna_tem_espaco(Tabuleiro, C)), JogadasValidas),
+
+         findall([C],
+                (member(C, JogadasValidas),
+                 troca_v2(Tabuleiro, C, 'O', NovoTabuleiro, L),
+                 pontuacao_jogada(NovoTabuleiro, Altura, Largura, Consecutivas, L, C, JogadasValidas, P)),
+                JogadasPontuadas),
+                
+        sort(JogadasPontuadas, SortedJogadasPontuadas),
+        reverse(SortedJogadasPontuadas, ReverseJogadasPontuadas),
+        member([Coluna], ReverseJogadasPontuadas)
+    ).
+
 pontuacao_jogada(Tabuleiro, Altura, Largura, Consecutivas, Linha, Coluna, JogadasValidas, Pontuacao) :-
     troca(Tabuleiro, Linha, Coluna, NovoTabuleiro, 'O'),
     findall(P,
@@ -292,6 +318,10 @@ pontuacao_jogada(Tabuleiro, Altura, Largura, Consecutivas, Linha, Coluna, Jogada
     length(Pontos, NumPontos),
     Pontuacao is NumPontos / (Altura * Largura).
 
+coluna_tem_espaco(Tabuleiro, Coluna) :-
+    nth1(1, Tabuleiro, PrimeiraLinha),
+    nth1(Coluna, PrimeiraLinha, UltimoElemento),
+    UltimoElemento == 'N'.
 
 vitoria_horizontal_aux(Tabuleiro, Linha, Simbolo, Consecutivas) :-
     nth1(Linha, Tabuleiro, LinhaTabuleiro),
