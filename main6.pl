@@ -309,10 +309,10 @@ pontuacao_jogada(Tabuleiro, Altura, Largura, Consecutivas, Linha, Coluna, Jogada
     troca(Tabuleiro, Linha, Coluna, NovoTabuleiro, 'O'),
     findall(P,
             (member([L, C], JogadasValidas),
-             troca(NovoTabuleiro, L, C, NovoTabuleiro2, 'O'),
-             (vitoria_horizontal_aux(NovoTabuleiro2, L, 'O', Consecutivas);
-              vitoria_vertical_aux(NovoTabuleiro2, C, 'O', Consecutivas);
-              vitoria_diagonal_aux(NovoTabuleiro2, 'O', C, L, Consecutivas, Altura, Largura)),
+             troca(NovoTabuleiro, L, C, NovoTabuleiro2, 'X'),
+             (vitoria_horizontal_aux(NovoTabuleiro2, L, 'X', Consecutivas);
+              vitoria_vertical_aux(NovoTabuleiro2, C, 'X', Consecutivas);
+              vitoria_diagonal_aux(NovoTabuleiro2, 'X', C, L, Consecutivas, Altura, Largura)),
              P),
             Pontos),
     length(Pontos, NumPontos),
