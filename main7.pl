@@ -20,6 +20,26 @@ mostra_aviso(Mensagem) :-
     send(Janela, default_button, 'Ok'),
     send(Janela, open).
 
+mostra_vitoria(Jogador) :-
+    new(Janela, dialog('Alerta')),
+
+    send(Janela, append, new(Texto, text('Fim do jogo! Vencedor: '))),
+    send(Texto, font, font(helvetica, bold, 14)),
+
+    send(Janela, append, new(Vencedor, text(Jogador))),
+    send(Vencedor, font, font(helvetica, bold, 14)),
+
+    new(Restart, button(restart, and(message(@prolog, restart),
+                            message(@prolog, fechar_menu, Janela)))),
+    send(Janela, append, Restart),
+
+    send(Janela, open).
+
+restart :-
+    retractall(tabuleiro(_)),
+    retractall(altura(_)),
+    jogar.
+
 % Definir o predicado que fecha o menu
 fechar_menu(Menu) :-
     send(Menu, destroy).
@@ -84,8 +104,8 @@ imprime_tabuleiro_v1 :-
 cria_botao_posicao_v1(X, Y, Janela, Altura, Largura) :-
     get_posicao(X, Y, Simbolo),
     
-    new(Botao, button(Simbolo, and(message(@prolog, joga_v1, X, Y),
-                                message(@prolog, fechar_menu, Janela)))),
+    new(Botao, button(Simbolo, and(message(@prolog, fechar_menu, Janela),
+                                message(@prolog, joga_v1, X, Y)))),
     send(Janela, append, Botao).
     
 % Predicado auxiliar para criar os botões de uma linha
@@ -116,8 +136,8 @@ imprime_tabuleiro_v2 :-
 cria_botao_posicao_v2(X, Y, Janela, Altura, Largura) :-
     get_posicao(X, Y, Simbolo),
     
-    new(Botao, button(Simbolo, and(message(@prolog, joga_v2, Y),
-                                message(@prolog, fechar_menu, Janela)))),
+    new(Botao, button(Simbolo, and(message(@prolog, fechar_menu, Janela),
+                                message(@prolog, joga_v2, Y)))),
     send(Janela, append, Botao).
     
 % Predicado auxiliar para criar os botões de uma linha
@@ -207,9 +227,7 @@ joga2_v1 :-
 
 % PREDICADOS PARA A VERSAO 2
 
-procura_indice(Coluna, Indice) :-
-    tabuleiro(Tabuleiro),
-
+procura_indice(Tabuleiro, Coluna, Indice) :-
     nth0(Coluna, Tabuleiro, ColunaEscolhida),
     reverse(ColunaEscolhida, ColunaInvertida),
     length(ColunaInvertida, Tam),
@@ -218,10 +236,10 @@ procura_indice(Coluna, Indice) :-
 
 troca_v2(Coluna, Simbolo, NovoTabuleiro, Indice) :-
     tabuleiro(Tabuleiro),
-    
+
     Coluna1 is Coluna - 1,
     transpose(Tabuleiro, Transposta),
-    procura_indice(Coluna1, Indice),
+    procura_indice(Transposta, Coluna1, Indice),
     troca(Tabuleiro, Indice, Coluna, NovoTabuleiro, Simbolo).
 
 verifica_coluna(Coluna) :-
@@ -243,12 +261,10 @@ joga_v2(Coluna) :-
     empate,
     joga2_v2;
     mostra_aviso('Coluna selecionada esta cheia, selecione outra'),
-    imprime_tabuleiro_v2(Tabuleiro).
+    imprime_tabuleiro_v2.
 
 % Jogador 2 joga
 joga2_v2 :-
-    tabuleiro(Tabuleiro),
-
     % Encontra a primeira posição vazia em que o jogador 2 pode jogar e vencer
     jogada_vencedora_v2(Linha, Coluna),
     troca_v2(Coluna, 'O', NovoTabuleiro, Linha),
@@ -268,7 +284,7 @@ vitoria_horizontal(Linha, Simbolo, Jogador) :-
     Linha1 is Linha - 1,
     nth0(Linha1, Tabuleiro, LinhaTeste),
     mesmo_simbolo(LinhaTeste, Simbolo),
-    mostra_aviso(Jogador).
+    mostra_vitoria(Jogador).
 
 % Verifica vencedor na vertical
 vitoria_vertical(Coluna, Simbolo, Jogador) :-
@@ -278,7 +294,7 @@ vitoria_vertical(Coluna, Simbolo, Jogador) :-
     transpose(Tabuleiro, Transposta),
     nth0(Coluna1, Transposta, LinhaTeste),
     mesmo_simbolo(LinhaTeste, Simbolo),
-    mostra_aviso(Jogador).
+    mostra_vitoria(Jogador).
 
 % Verifica vencedor nas diagonais
 vitoria_diagonal(Simbolo, Jogador):-
@@ -292,7 +308,7 @@ vitoria_diagonal(Simbolo, Jogador):-
     pega_diagonal2(Tabuleiro, Largura, Diagonal3),
     pega_diagonal2(Tabuleiro, Largura1, Diagonal4),
     (mesmo_simbolo(Diagonal1, Simbolo); mesmo_simbolo(Diagonal2, Simbolo); mesmo_simbolo(Diagonal3, Simbolo) ; mesmo_simbolo(Diagonal4, Simbolo)) ->
-    mostra_aviso(Jogador);
+    mostra_vitoria(Jogador);
     fail.
 
 % Predicado que pega a diagonal principal mais a diagonal que comeca em
@@ -324,7 +340,7 @@ empate :-
 
     converte_tabuleiro(Tabuleiro, Lista),
     not(member('N', Lista)) ->
-    mostra_aviso('A partida empatou'),
+    mostra_vitoria('A partida empatou'),
     jogar;
     write('').
 
