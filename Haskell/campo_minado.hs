@@ -1,5 +1,6 @@
 import System.Random (randomRIO)
 import Data.List (transpose)
+import Data.Char (chr, ord)
 
 type Board = [[Cell]]
 type Cell = (Int, Bool) -- (Valor, Bomba?)
@@ -44,9 +45,9 @@ updateCells board = transpose $ map (map updateCellValue) (transpose $ map (map 
 
 -- Função para atualizar o valor de uma célula
 updateCellValue :: Cell -> Cell
-updateCellValue (value, bomb) = (value + countAdjacentBombs, bomb)
+updateCellValue (value, bomb) = if bomb then (value, bomb) else (countAdjacentBombs, bomb)
   where
-    countAdjacentBombs = if bomb then 0 else length $ filter (\(_, isBomb) -> isBomb) $ getAdjacentCells (value, bomb)
+    countAdjacentBombs = length $ filter (\(_, isBomb) -> isBomb) $ getAdjacentCells (value, bomb)
 
 -- Função para obter as células adjacentes a uma dada célula
 getAdjacentCells :: Cell -> [Cell]
@@ -63,30 +64,56 @@ updateCell board (x, y) cell = take x board ++ [take y (board !! x) ++ [cell] ++
 printBoard :: Board -> IO ()
 printBoard board = do
   putStrLn "Tabuleiro:"
-  mapM_ printRow board
+  let columnLetters = take (length board) ['A'..]
+  putStrLn $ "   " ++ unwords (map (\c -> [c]) columnLetters) -- Imprime as letras das colunas
+  mapM_ printRow (zip [1..] board)
   putStrLn ""
 
 -- Função para exibir uma linha do tabuleiro
-printRow :: [Cell] -> IO ()
-printRow row = do
+printRow :: (Int, [Cell]) -> IO ()
+printRow (rowNum, row) = do
+  putStr (padLeft 2 (show rowNum) ++ " ")
   mapM_ printCell row
   putStrLn ""
 
 -- Função para exibir uma célula do tabuleiro
 printCell :: Cell -> IO ()
-printCell (value, bomb)
-  | bomb = putStr "[*]"
-  | otherwise = putStr ("[" ++ show value ++ "]")
+printCell (_, bomb) | bomb = putStr "[ ]"
+printCell (value, _) | value > 0 = putStr ("[" ++ show value ++ "]")
+printCell _ = putStr "[ ]"
 
 -- Função principal do jogo
 playGame :: Board -> IO ()
 playGame board = do
   printBoard board
   putStrLn "Selecione a posição (linha, coluna):"
-  (x, y) <- readLn
+  position <- getLine
+  let (x, y) = parsePosition position
   let cell = (board !! x) !! y
   if snd cell
     then putStrLn "Você perdeu! Game over."
     else do
       let updatedBoard = updateCell board (x, y) cell
       playGame updatedBoard
+
+-- Função para converter a posição do formato "1A" para as coordenadas (linha, coluna)
+parsePosition :: String -> (Int, Int)
+parsePosition position =
+  let
+    rowNumberStr = takeWhile (/= 'a') position
+    rowNumber = read rowNumberStr :: Int
+    columnLetter = last position
+    column = ord (toUpper columnLetter) - ord 'A'
+    row = rowNumber - 1
+  in
+    (row, column)
+
+-- Função para preencher uma string à esquerda com espaços para ter um comprimento específico
+padLeft :: Int -> String -> String
+padLeft len str = replicate (len - length str) ' ' ++ str
+
+-- Função para converter um caractere em letra maiúscula
+toUpper :: Char -> Char
+toUpper c
+  | c >= 'a' && c <= 'z' = chr (ord c - ord 'a' + ord 'A')
+  | otherwise = c
