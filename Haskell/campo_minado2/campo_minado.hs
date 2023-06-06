@@ -11,11 +11,10 @@ main = do
   putStrLn "Bem-vindo ao Campo Minado!"
   sizeTab <- getSizeTab
   let board = createBoard sizeTab
-  printBoard board
   sizeBomb <- getSizeBomb sizeTab
   newBoard <- generateBombs board sizeBomb
   printBoard newBoard
-  playGame board
+  playGame board sizeTab
   return()
 
 -- Função para criar um tabuleiro
@@ -104,11 +103,27 @@ indexToPosition index size =
   in (row, col)
 
 -- Tela principal do jogo
-playGame :: [[Char]] -> IO()
-playGame board = do
-  putStrLn "Escolha uma posição para jogar ou marcar:"
-  putStrLn "Digite a linha:"
-  row <- readLn :: IO Int
-  putStrLn "Digite a coluna:"
-  col <- readLn :: IO Int
+playGame :: [[Char]] -> Int -> IO()
+playGame board sizeTab = do
+  putStrLn "Selecione uma das opções abaixo:"
+  putStrLn "M seguido de linha e coluna para marcar uma posição"
+  putStrLn "D seguido de linha e coluna para desmarcar uma posição"
+  putStrLn "A seguido de linha e coluna para abrir uma posição"
+  entry <- getLine
+  let action = head entry -- primeiro caractere (A, M ou D)
+      params = tail entry -- restante da string (linha e coluna)
+      row = read [head params] :: Int -- converte o primeiro caractere em um valor inteiro
+      col = read [last params] :: Int -- converte o último caractere em um valor inteiro
+  if action == 'M' && row <= sizeTab && col <= sizeTab then
+    -- implementação para marcar posição
+  else if action == 'D' && row <= sizeTab && col <= sizeTab then
+    -- implementação para desmarcar posição
+  else if action == 'A' && row <= sizeTab && col <= sizeTab then
+    -- implementação para acessar posição
+  else
+    putStrLn "Entrada incorreta, informe a letra M, D ou A seguida da linha e coluna na qual você queira fazer uma ação"
+    putStrLn "Exemplos: M21 para marcar linha 2, coluna 1"
+    putStrLn "          D34 para desmarcar linha 3, coluna 4"
+    putStrLn "          A11 para acessar linha 1, coluna 1"
+    playGame board sizeTab
   return()
