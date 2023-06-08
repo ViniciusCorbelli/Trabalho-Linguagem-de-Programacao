@@ -209,15 +209,16 @@ markPosition board row col sizeTab sizeBomb = do
         else do
           putStrLn $ "Marcando posição " ++ [chr (row + ord 'A' - 1)] ++ show col
           printBoard updatedBoard
-          playGame updatedBoard sizeTab sizeBomb
+          return updatedBoard
     else do
       putStrLn "Posição já marcada/aberta, escolha outra"
-      playGame board sizeTab sizeBomb
+      return board
 
 markCell :: Board -> Int -> Int -> Board
 markCell board row col =
   let (upperRows, currentRow:lowerRows) = splitAt (row - 1) board
-      updatedRow = updateList (col - 1) ('M', False) currentRow
+      (c, bomb) = currentRow !! (col - 1)
+      updatedRow = updateList (col - 1) ('M', bomb) currentRow
    in upperRows ++ (updatedRow : lowerRows)
 
 unmarkPosition :: Board -> Int -> Int -> IO Board
@@ -234,7 +235,8 @@ unmarkPosition board row col = do
 unmarkCell :: Board -> Int -> Int -> Board
 unmarkCell board row col =
   let (upperRows, currentRow:lowerRows) = splitAt (row - 1) board
-      updatedRow = updateList (col - 1) ('*', False) currentRow
+      (c, bomb) = currentRow !! (col - 1)
+      updatedRow = updateList (col - 1) ('*', bomb) currentRow
   in upperRows ++ (updatedRow : lowerRows)
 
 
@@ -253,7 +255,7 @@ limitsApp board sizeTab = countOccurrences board 'M' <= sizeTab - 1
 openPosition :: Board -> Int -> Int -> Int -> Int -> IO Board
 openPosition board row col sizeTab sizeBomb = do
   let (currentChar, isBomb) = board !! (row - 1) !! (col - 1)
-  if currentChar == '*' || currentChar == '+'
+  if currentChar == '*' || currentChar == 'M'
     then do
       if isBomb
         then do
@@ -302,6 +304,20 @@ updateBoardDigit row col newVal board =
       updatedRow = updateList col (newVal, False) currentRow
   in upperRows ++ (updatedRow : lowerRows)
 
+-- Função para imprimir o tabuleiro revelando todas as bombas
 revealBoard :: Board -> IO ()
 revealBoard board = do
-  printBoard board
+  putStrLn "Tabuleiro:"
+  putStrLn "-----------------"
+  let indexedBoard = zip [1..] board
+  printColumnLetters (length (head board))
+  mapM_ printRevealedRow (reverse indexedBoard)
+  putStrLn "-----------------"
+
+printRevealedRow :: (Int, [Cell]) -> IO ()
+printRevealedRow (index, row) = do
+  let convertedRow = map cellToCharRevealed row
+  putStrLn (show index ++ " " ++ intersperse ' ' convertedRow)
+
+cellToCharRevealed :: Cell -> Char
+cellToCharRevealed (c, bomb) = if bomb then 'B' else c
