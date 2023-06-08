@@ -1,8 +1,9 @@
 import System.Random (randomRIO)
 import Control.Monad
 import Data.List (transpose, intersperse)
-import Data.Char (chr, ord)
+import Data.Char (chr, ord, intToDigit, isAlpha, isDigit, toUpper, digitToInt)
 import Data.Bool (Bool(..), (||))
+import System.Random
 
 type Board = [[Cell]]
 type Cell = (Char, Bool) -- (Conteúdo, Bomba?)
@@ -26,24 +27,35 @@ createBoard sizeTab = replicate sizeTab (replicate sizeTab ('*', False))
 getSizeTab :: IO Int
 getSizeTab = do
   putStrLn "Informe o tamanho 'n' do campo (entre 3 e 10, campo n x n):"
-  sizeTab <- readLn
-  if sizeTab >= 3 && sizeTab <= 10
-    then return sizeTab
-    else do
-      putStrLn "Tamanho inválido. Por favor informar tamanho entre 3 e 10."
+  input <- getLine
+  case reads input of
+    [(sizeTab, "")] ->
+      if sizeTab >= 3 && sizeTab <= 10
+        then return sizeTab
+        else do
+          putStrLn "Tamanho inválido. Por favor informar tamanho entre 3 e 10."
+          getSizeTab
+    _ -> do
+      putStrLn "Entrada inválida. Por favor informar um número inteiro."
       getSizeTab
 
 -- Função para obter a quantidade de bombas a partir do usuário
 getSizeBomb :: Int -> IO Int
 getSizeBomb sizeTab = do
   putStrLn "Informe a quantidade de bombas do campo:"
-  sizeBomb <- readLn
-  let sizeTabTo = sizeTab * sizeTab
-  if sizeBomb <= sizeTabTo `div` 2
-    then return sizeBomb
-    else do
-      putStrLn "Quantidade inválida de bombas, tente novamente"
+  input <- getLine
+  case reads input of
+    [(sizeBomb, "")] ->
+      let sizeTabTo = sizeTab * sizeTab
+      in if sizeBomb <= sizeTabTo `div` 2
+           then return sizeBomb
+           else do
+             putStrLn "Quantidade inválida de bombas, tente novamente"
+             getSizeBomb sizeTab
+    _ -> do
+      putStrLn "Entrada inválida. Por favor informar um número inteiro."
       getSizeBomb sizeTab
+
 
 -- Função para imprimir o tabuleiro (escondendo as bombas)
 printBoard :: Board -> IO ()
@@ -120,48 +132,60 @@ playGame board sizeTab sizeBomb = do
   entry <- getLine
   let action = head entry -- primeiro caractere deve ser + ou -
       params = tail entry -- restante da string
-  if action == '+'
+  if action == '+' || action == '-'
     then do
-      let col = ord (head params) - ord 'A' + 1
-          row = read (tail params) :: Int
-      if validPosition row col sizeTab
+      let validPosition = validatePosition params sizeTab
+      if validPosition
         then do
-          if limitsApp board sizeBomb
+          if action == '+'
             then do
-              putStrLn $ "Marcando posição " ++ [chr (row + ord 'A' - 1)] ++ show col
-              updatedBoard <- markPosition board row col sizeTab sizeBomb
+              if limitsApp board sizeBomb
+                then do
+                  let col = ord (head params) - ord 'A' + 1
+                      row = read (tail params) :: Int
+                  putStrLn $ "Marcando posição " ++ [chr (row + ord 'A' - 1)] ++ show col
+                  updatedBoard <- markPosition board row col sizeTab sizeBomb
+                  printBoard updatedBoard
+                  playGame updatedBoard sizeTab sizeBomb
+                else do
+                  putStrLn "O tabuleiro atingiu o máximo de posições marcadas. Desmarque uma posição antes de marcar outra!"
+                  playGame board sizeTab sizeBomb
+            else do
+              let row = ord (head params) - ord 'A' + 1
+                  col = read (tail params) :: Int
+              putStrLn $ "Desmarcando posição " ++ [chr (row + ord 'A' - 1)] ++ show col
+              updatedBoard <- unmarkPosition board col row
               printBoard updatedBoard
               playGame updatedBoard sizeTab sizeBomb
-          else do
-            putStrLn "O tabuleiro atingiu o máximo de posições marcadas. Desmarque uma posição antes de marcar outra!"
-            playGame board sizeTab sizeBomb
-      else do
-        putStrLn "Posição inválida"
-        playGame board sizeTab sizeBomb
-  else if action == '-'
-    then do
-      let row = ord (head params) - ord 'A' + 1
-          col = read (tail params) :: Int
-      if validPosition row col sizeTab
-        then do
-          putStrLn $ "Desmarcando posição " ++ [chr (row + ord 'A' - 1)] ++ show col
-          -- Implemente a lógica para desmarcar a posição
-          return board
         else do
           putStrLn "Posição inválida"
-          return board
-  else do
-    let row = ord action - ord 'A' + 1
-        col = read params :: Int
-    if validPosition row col sizeTab
-      then do
-        putStrLn $ "Abrindo posição " ++ [chr (row + ord 'A' - 1)] ++ show col
-        -- Implemente a lógica para abrir a posição
-        return board
-      else do
-        putStrLn "Posição inválida"
-        playGame board sizeTab sizeBomb
+          playGame board sizeTab sizeBomb
+    else do
+      let validPosition = validatePosition (action : params) sizeTab
+      if validPosition
+        then do
+          let row = ord action - ord 'A' + 1
+              col = read params :: Int
+          putStrLn $ "Abrindo posição " ++ [chr (row + ord 'A' - 1)] ++ show col
+          updatedBoard <- openPosition board col row sizeTab sizeBomb
+          return updatedBoard
+        else do
+          putStrLn "Posição inválida"
+          playGame board sizeTab sizeBomb
 
+validatePosition :: String -> Int -> Bool
+validatePosition position sizeTab
+  | length position < 2 = False
+  | not $ isAlpha colChar = False
+  | not $ isDigit rowChar = False
+  | col < 1 || col > sizeTab = False
+  | row < 1 || row > sizeTab = False
+  | otherwise = True
+  where
+    colChar = head position
+    rowChar = head (tail position)
+    col = ord (toUpper colChar) - ord 'A' + 1
+    row = digitToInt rowChar
 
 -- FUNÇÕES QUE ENVOLVEM O CAMPO MIN. (MARCA POS, DESMARCA POS, ABRE POS, TESTA VITÓRIA, TESTA DERROTA, TESTA JOGADA E SEUS AUXILIARES)
 
@@ -180,7 +204,8 @@ markPosition board row col sizeTab sizeBomb = do
         do
           printBoard updatedBoard
           putStrLn "PARABÉNS! VOCÊ VENCEU!"
-          playGame updatedBoard sizeTab sizeBomb
+          revealBoard updatedBoard
+          return board
         else do
           putStrLn $ "Marcando posição " ++ [chr (row + ord 'A' - 1)] ++ show col
           printBoard updatedBoard
@@ -195,6 +220,24 @@ markCell board row col =
       updatedRow = updateList (col - 1) ('M', False) currentRow
    in upperRows ++ (updatedRow : lowerRows)
 
+unmarkPosition :: Board -> Int -> Int -> IO Board
+unmarkPosition board row col = do
+  let (currentChar, _) = board !! (row - 1) !! (col - 1)
+  if currentChar == 'M'
+    then do
+      let updatedBoard = unmarkCell board row col
+      return updatedBoard
+    else do
+      putStrLn "Posição não marcada, escolha outra"
+      return board
+
+unmarkCell :: Board -> Int -> Int -> Board
+unmarkCell board row col =
+  let (upperRows, currentRow:lowerRows) = splitAt (row - 1) board
+      updatedRow = updateList (col - 1) ('*', False) currentRow
+  in upperRows ++ (updatedRow : lowerRows)
+
+
 -- Função para verificar se todas as bombas do tabuleiro foram marcadas
 checkVictory :: Board -> Bool
 checkVictory board = all (\row -> all (\(c, bomb) -> not bomb || c == 'M') row) board
@@ -205,3 +248,60 @@ limitsApp board sizeTab = countOccurrences board 'M' <= sizeTab - 1
   where
     countOccurrences :: Board -> Char -> Int
     countOccurrences board char = length $ filter (== char) $ concat $ map (map fst) board
+
+-- Função para abrir uma posição do campo
+openPosition :: Board -> Int -> Int -> Int -> Int -> IO Board
+openPosition board row col sizeTab sizeBomb = do
+  let (currentChar, isBomb) = board !! (row - 1) !! (col - 1)
+  if currentChar == '*' || currentChar == '+'
+    then do
+      if isBomb
+        then do
+          putStrLn "BOOM! Você perdeu!"
+          let updatedBoard = updateBoardDigit (row - 1) (col - 1) 'B' board
+          revealBoard updatedBoard
+          return board
+        else do
+          let numBombs = countAdjacentBombs board (row - 1) (col - 1) sizeTab
+          let updatedBoard = updateBoardDigit (row - 1) (col - 1) (intToDigit numBombs) board
+          if checkVictoryBomb updatedBoard sizeBomb then do
+            putStrLn "Parabéns! Você venceu!"
+            revealBoard updatedBoard
+            return updatedBoard
+          else do
+            printBoard updatedBoard
+            playGame updatedBoard sizeTab sizeBomb
+    else do
+      putStrLn "Posição já aberta/marcada, escolha outra"
+      playGame board sizeTab sizeBomb
+
+countAdjacentBombs :: Board -> Int -> Int -> Int -> Int
+countAdjacentBombs board row col sizeTab =
+  let positions = [(row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)]
+      validPositions = filter (isValidPosition sizeTab) positions
+      adjacentCells = map (\(r, c) -> board !! r !! c) validPositions
+   in length $ filter isBomb adjacentCells
+
+
+isValidPosition :: Int -> (Int, Int) -> Bool
+isValidPosition sizeTab (row, col) =
+  row >= 0 && row < sizeTab && col >= 0 && col < sizeTab
+
+isBomb :: Cell -> Bool
+isBomb (_, bomb) = bomb
+
+checkVictoryBomb :: Board -> Int -> Bool
+checkVictoryBomb board sizeBomb = countMarkedCells board == sizeBomb
+
+countMarkedCells :: Board -> Int
+countMarkedCells board = length $ filter (\(c, _) -> c == 'M') $ concat board
+
+updateBoardDigit :: Int -> Int -> Char -> Board -> Board
+updateBoardDigit row col newVal board =
+  let (upperRows, currentRow:lowerRows) = splitAt row board
+      updatedRow = updateList col (newVal, False) currentRow
+  in upperRows ++ (updatedRow : lowerRows)
+
+revealBoard :: Board -> IO ()
+revealBoard board = do
+  printBoard board
