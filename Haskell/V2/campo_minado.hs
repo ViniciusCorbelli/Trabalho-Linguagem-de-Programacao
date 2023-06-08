@@ -2,9 +2,10 @@ import System.Random (randomRIO)
 import Control.Monad
 import Data.List (transpose, intersperse)
 import Data.Char (chr, ord)
+import Data.Bool (Bool(..), (||))
 
-type Board = [[Char]]
-type Cell = (Int, Bool) -- (Valor, Bomba?)
+type Board = [[Cell]]
+type Cell = (Char, Bool) -- (Conteúdo, Bomba?)
 
 main :: IO ()
 main = do
@@ -19,33 +20,7 @@ main = do
 
 -- Função para criar um tabuleiro
 createBoard :: Int -> Board
-createBoard sizeTab = replicate sizeTab (replicate sizeTab '*')
-
--- Função para imprimir o tabuleiro (escondendo as bombas)
-printBoard :: Board -> IO ()
-printBoard board = do
-  putStrLn "Tabuleiro:"
-  putStrLn "-----------------"
-  let indexedBoard = zip [1..] board
-  printColumnLetters (length (head board))
-  mapM_ printIndexedRow (reverse indexedBoard)
-  putStrLn "-----------------"
-
-printColumnLetters :: Int -> IO ()
-printColumnLetters numCols = do
-  let letters = take numCols ['A'..]
-  putStrLn $ "  " ++ intersperse ' ' letters  -- Espaçamento e letras das colunas
-
-printIndexedRow :: (Int, [Char]) -> IO ()
-printIndexedRow (index, row) = do
-  let indexedRow = zip [1..] row
-      convertedRow = map cellToChar indexedRow
-  putStrLn (show index ++ " " ++ intersperse ' ' convertedRow)
-
-cellToChar :: (Int, Char) -> Char
-cellToChar (_, '*') = '*'
-cellToChar (_, '+') = '*'
-cellToChar (col, c) = c
+createBoard sizeTab = replicate sizeTab (replicate sizeTab ('*', False))
 
 -- Função para obter o tamanho do tabuleiro a partir do usuário
 getSizeTab :: IO Int
@@ -70,6 +45,28 @@ getSizeBomb sizeTab = do
       putStrLn "Quantidade inválida de bombas, tente novamente"
       getSizeBomb sizeTab
 
+-- Função para imprimir o tabuleiro (escondendo as bombas)
+printBoard :: Board -> IO ()
+printBoard board = do
+  putStrLn "Tabuleiro:"
+  putStrLn "-----------------"
+  let indexedBoard = zip [1..] board
+  printColumnLetters (length (head board))
+  mapM_ printIndexedRow (reverse indexedBoard)
+  putStrLn "-----------------"
+
+printColumnLetters :: Int -> IO ()
+printColumnLetters numCols = do
+  let letters = take numCols ['A'..]
+  putStrLn $ "  " ++ intersperse ' ' letters  -- Espaçamento e letras das colunas
+
+printIndexedRow :: (Int, [Cell]) -> IO ()
+printIndexedRow (index, row) = do
+  let convertedRow = map cellToChar row
+  putStrLn (show index ++ " " ++ intersperse ' ' convertedRow)
+
+cellToChar :: Cell -> Char
+cellToChar (c, _) = c
 
 -- Função para gerar aleatoriamente as posições das bombas de forma que não se repita, 
 -- seguida de funções auxiliares para atualização da tabela, que é retornada
@@ -78,7 +75,7 @@ generateBombs board numBombs = do
   let sizeTab = length board
       sizeTabTo = sizeTab * sizeTab
   positions <- generateUniquePositions numBombs sizeTabTo
-  let updatedBoard = foldl (\acc pos -> updateBoard pos '+' acc) board positions
+  let updatedBoard = foldl (\acc pos -> updateBoard pos ('*', True) acc) board positions
   return updatedBoard
 
 generateUniquePositions :: Int -> Int -> IO [Int]
@@ -94,14 +91,14 @@ generateUniquePositions' numPositions range acc = do
     then generateUniquePositions' numPositions range acc
     else generateUniquePositions' (numPositions - 1) range (position : acc)
 
-updateBoard :: Int -> Char -> Board -> Board
-updateBoard pos char board =
+updateBoard :: Int -> Cell -> Board -> Board
+updateBoard pos cell board =
   let (row, col) = indexToPosition pos (length board)
       (upperRows, currentRow:lowerRows) = splitAt row board
-      updatedRow = updateList col char currentRow
+      updatedRow = updateList col cell currentRow
    in upperRows ++ (updatedRow : lowerRows)
 
-updateList :: Int -> a -> [a] -> [a]
+updateList :: Int -> Cell -> [Cell] -> [Cell]
 updateList _ _ [] = []
 updateList index newVal (x:xs)
   | index == 0 = newVal : xs
@@ -175,8 +172,8 @@ validPosition row col sizeTab = row >= 1 && row <= sizeTab && col >= 1 && col <=
 -- Função para marcar uma posição do campo
 markPosition :: Board -> Int -> Int -> Int -> Int -> IO Board
 markPosition board row col sizeTab sizeBomb = do
-  let currentChar = board !! (row - 1) !! (col - 1)
-  if currentChar == '*'|| currentChar == '+'
+  let (currentChar, _) = board !! (row - 1) !! (col - 1)
+  if currentChar == '*' || currentChar == '+'
     then do
       let updatedBoard = markCell board row col
       if checkVictory updatedBoard then 
@@ -195,16 +192,16 @@ markPosition board row col sizeTab sizeBomb = do
 markCell :: Board -> Int -> Int -> Board
 markCell board row col =
   let (upperRows, currentRow:lowerRows) = splitAt (row - 1) board
-      updatedRow = updateList (col - 1) 'M' currentRow
+      updatedRow = updateList (col - 1) ('M', False) currentRow
    in upperRows ++ (updatedRow : lowerRows)
 
 -- Função para verificar se todas as bombas do tabuleiro foram marcadas
 checkVictory :: Board -> Bool
-checkVictory board = all (notElem '+') board
+checkVictory board = all (\row -> all (\(c, bomb) -> not bomb || c == 'M') row) board
 
 -- Função para limitar número de posições a serem marcadas no tabuleiro
 limitsApp :: Board -> Int -> Bool
 limitsApp board sizeTab = countOccurrences board 'M' <= sizeTab - 1 
   where
     countOccurrences :: Board -> Char -> Int
-    countOccurrences board char = length $ filter (== char) $ concat board
+    countOccurrences board char = length $ filter (== char) $ concat $ map (map fst) board
