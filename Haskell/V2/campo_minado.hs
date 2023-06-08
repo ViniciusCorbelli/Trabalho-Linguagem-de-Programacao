@@ -1,7 +1,7 @@
 import System.Random (randomRIO)
 import Control.Monad
 import Data.List (transpose, intersperse)
-import Data.Char (chr, ord)
+import Data.Char (chr, ord, intToDigit)
 import Data.Bool (Bool(..), (||))
 
 type Board = [[Cell]]
@@ -145,8 +145,9 @@ playGame board sizeTab sizeBomb = do
       if validPosition row col sizeTab
         then do
           putStrLn $ "Desmarcando posição " ++ [chr (row + ord 'A' - 1)] ++ show col
-          -- Implemente a lógica para desmarcar a posição
-          return board
+          updatedBoard <- unmarkPosition board row col
+          printBoard updatedBoard
+          playGame updatedBoard sizeTab sizeBomb
         else do
           putStrLn "Posição inválida"
           return board
@@ -156,8 +157,8 @@ playGame board sizeTab sizeBomb = do
     if validPosition row col sizeTab
       then do
         putStrLn $ "Abrindo posição " ++ [chr (row + ord 'A' - 1)] ++ show col
-        -- Implemente a lógica para abrir a posição
-        return board
+        updatedBoard <- openPosition board col row sizeTab sizeBomb
+        return updatedBoard
       else do
         putStrLn "Posição inválida"
         playGame board sizeTab sizeBomb
@@ -195,6 +196,24 @@ markCell board row col =
       updatedRow = updateList (col - 1) ('M', False) currentRow
    in upperRows ++ (updatedRow : lowerRows)
 
+unmarkPosition :: Board -> Int -> Int -> IO Board
+unmarkPosition board row col = do
+  let (currentChar, _) = board !! (row - 1) !! (col - 1)
+  if currentChar == 'M'
+    then do
+      let updatedBoard = unmarkCell board row col
+      return updatedBoard
+    else do
+      putStrLn "Posição não marcada, escolha outra"
+      return board
+
+unmarkCell :: Board -> Int -> Int -> Board
+unmarkCell board row col =
+  let (upperRows, currentRow:lowerRows) = splitAt (row - 1) board
+      updatedRow = updateList (col - 1) ('*', False) currentRow
+  in upperRows ++ (updatedRow : lowerRows)
+
+
 -- Função para verificar se todas as bombas do tabuleiro foram marcadas
 checkVictory :: Board -> Bool
 checkVictory board = all (\row -> all (\(c, bomb) -> not bomb || c == 'M') row) board
@@ -205,3 +224,60 @@ limitsApp board sizeTab = countOccurrences board 'M' <= sizeTab - 1
   where
     countOccurrences :: Board -> Char -> Int
     countOccurrences board char = length $ filter (== char) $ concat $ map (map fst) board
+
+-- Função para abrir uma posição do campo
+openPosition :: Board -> Int -> Int -> Int -> Int -> IO Board
+openPosition board row col sizeTab sizeBomb = do
+  let (currentChar, isBomb) = board !! (row - 1) !! (col - 1)
+  if currentChar == '*' || currentChar == '+'
+    then do
+      if isBomb
+        then do
+          putStrLn "BOOM! Você perdeu!"
+          let updatedBoard = updateBoardDigit (row - 1) (col - 1) 'B' board
+          revealBoard updatedBoard
+          return board
+        else do
+          let numBombs = countAdjacentBombs board (row - 1) (col - 1) sizeTab
+          let updatedBoard = updateBoardDigit (row - 1) (col - 1) (intToDigit numBombs) board
+          if checkVictoryBomb updatedBoard sizeBomb then do
+            putStrLn "Parabéns! Você venceu!"
+            revealBoard updatedBoard
+            return updatedBoard
+          else do
+            printBoard updatedBoard
+            playGame updatedBoard sizeTab sizeBomb
+    else do
+      putStrLn "Posição já aberta/marcada, escolha outra"
+      playGame board sizeTab sizeBomb
+
+countAdjacentBombs :: Board -> Int -> Int -> Int -> Int
+countAdjacentBombs board row col sizeTab =
+  let positions = [(row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)]
+      validPositions = filter (isValidPosition sizeTab) positions
+      adjacentCells = map (\(r, c) -> board !! r !! c) validPositions
+   in length $ filter isBomb adjacentCells
+
+
+isValidPosition :: Int -> (Int, Int) -> Bool
+isValidPosition sizeTab (row, col) =
+  row >= 0 && row < sizeTab && col >= 0 && col < sizeTab
+
+isBomb :: Cell -> Bool
+isBomb (_, bomb) = bomb
+
+checkVictoryBomb :: Board -> Int -> Bool
+checkVictoryBomb board sizeBomb = countMarkedCells board == sizeBomb
+
+countMarkedCells :: Board -> Int
+countMarkedCells board = length $ filter (\(c, _) -> c == 'M') $ concat board
+
+updateBoardDigit :: Int -> Int -> Char -> Board -> Board
+updateBoardDigit row col newVal board =
+  let (upperRows, currentRow:lowerRows) = splitAt row board
+      updatedRow = updateList col (newVal, False) currentRow
+  in upperRows ++ (updatedRow : lowerRows)
+
+revealBoard :: Board -> IO ()
+revealBoard board = do
+  printBoard board
