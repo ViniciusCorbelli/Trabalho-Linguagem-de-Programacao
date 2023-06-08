@@ -204,8 +204,7 @@ markPosition board row col sizeTab sizeBomb = do
         do
           printBoard updatedBoard
           putStrLn "PARABÉNS! VOCÊ VENCEU!"
-          revealBoard updatedBoard
-          return board
+          playGame updatedBoard sizeTab sizeBomb
         else do
           putStrLn $ "Marcando posição " ++ [chr (row + ord 'A' - 1)] ++ show col
           printBoard updatedBoard
