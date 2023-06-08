@@ -14,7 +14,7 @@ main = do
   sizeBomb <- getSizeBomb sizeTab
   newBoard <- generateBombs board sizeBomb
   printBoard newBoard
-  playGame newBoard sizeTab
+  playGame newBoard sizeTab sizeBomb
   return()
 
 -- Função para criar um tabuleiro
@@ -114,8 +114,8 @@ indexToPosition index size =
   in (row, col)
 
 -- Tela principal
-playGame :: Board -> Int -> IO Board
-playGame board sizeTab = do
+playGame :: Board -> Int -> Int -> IO Board
+playGame board sizeTab sizeBomb = do
   putStrLn "Selecione uma das opções abaixo:"
   putStrLn "Letra da coluna seguida de número da linha para abrir posição"
   putStrLn "+ seguido de letra da coluna (maiúsculo) seguido de número da linha para marcar posição"
@@ -129,13 +129,18 @@ playGame board sizeTab = do
           row = read (tail params) :: Int
       if validPosition row col sizeTab
         then do
-          putStrLn $ "Marcando posição " ++ [chr (row + ord 'A' - 1)] ++ show col
-          updatedBoard <- markPosition board row col sizeTab
-          printBoard updatedBoard
-          playGame updatedBoard sizeTab
+          if limitsApp board sizeBomb
+            then do
+              putStrLn $ "Marcando posição " ++ [chr (row + ord 'A' - 1)] ++ show col
+              updatedBoard <- markPosition board row col sizeTab sizeBomb
+              printBoard updatedBoard
+              playGame updatedBoard sizeTab sizeBomb
+          else do
+            putStrLn "O tabuleiro atingiu o máximo de posições marcadas. Desmarque uma posição antes de marcar outra!"
+            playGame board sizeTab sizeBomb
       else do
         putStrLn "Posição inválida"
-        return board
+        playGame board sizeTab sizeBomb
   else if action == '-'
     then do
       let row = ord (head params) - ord 'A' + 1
@@ -158,7 +163,7 @@ playGame board sizeTab = do
         return board
       else do
         putStrLn "Posição inválida"
-        playGame board sizeTab
+        playGame board sizeTab sizeBomb
 
 
 -- FUNÇÕES QUE ENVOLVEM O CAMPO MIN. (MARCA POS, DESMARCA POS, ABRE POS, TESTA VITÓRIA, TESTA DERROTA, TESTA JOGADA E SEUS AUXILIARES)
@@ -168,8 +173,8 @@ validPosition :: Int -> Int -> Int -> Bool
 validPosition row col sizeTab = row >= 1 && row <= sizeTab && col >= 1 && col <= sizeTab
 
 -- Função para marcar uma posição do campo
-markPosition :: Board -> Int -> Int -> Int -> IO Board
-markPosition board row col sizeTab = do
+markPosition :: Board -> Int -> Int -> Int -> Int -> IO Board
+markPosition board row col sizeTab sizeBomb = do
   let currentChar = board !! (row - 1) !! (col - 1)
   if currentChar == '*'|| currentChar == '+'
     then do
@@ -178,14 +183,14 @@ markPosition board row col sizeTab = do
         do
           printBoard updatedBoard
           putStrLn "PARABÉNS! VOCÊ VENCEU!"
-          playGame updatedBoard sizeTab
+          playGame updatedBoard sizeTab sizeBomb
         else do
           putStrLn $ "Marcando posição " ++ [chr (row + ord 'A' - 1)] ++ show col
           printBoard updatedBoard
-          playGame updatedBoard sizeTab
+          playGame updatedBoard sizeTab sizeBomb
     else do
       putStrLn "Posição já marcada/aberta, escolha outra"
-      playGame board sizeTab
+      playGame board sizeTab sizeBomb
 
 markCell :: Board -> Int -> Int -> Board
 markCell board row col =
@@ -196,3 +201,10 @@ markCell board row col =
 -- Função para verificar se todas as bombas do tabuleiro foram marcadas
 checkVictory :: Board -> Bool
 checkVictory board = all (notElem '+') board
+
+-- Função para limitar número de posições a serem marcadas no tabuleiro
+limitsApp :: Board -> Int -> Bool
+limitsApp board sizeTab = countOccurrences board 'M' <= sizeTab - 1 
+  where
+    countOccurrences :: Board -> Char -> Int
+    countOccurrences board char = length $ filter (== char) $ concat board
