@@ -177,15 +177,15 @@ validatePosition :: String -> Int -> Bool
 validatePosition position sizeTab
   | length position < 2 = False
   | not $ isAlpha colChar = False
-  | not $ isDigit rowChar = False
+  | not $ all isDigit rowDigits = False
   | col < 1 || col > sizeTab = False
   | row < 1 || row > sizeTab = False
   | otherwise = True
   where
     colChar = head position
-    rowChar = head (tail position)
+    rowDigits = filter isDigit (tail position)
     col = ord (toUpper colChar) - ord 'A' + 1
-    row = digitToInt rowChar
+    row = read rowDigits :: Int
 
 -- FUNÇÕES QUE ENVOLVEM O CAMPO MIN. (MARCA POS, DESMARCA POS, ABRE POS, TESTA VITÓRIA, TESTA DERROTA, TESTA JOGADA E SEUS AUXILIARES)
 
