@@ -8,12 +8,12 @@
 
 ; Representação de procedimentos para escopo estático
 ; ----------------- STRUCTS ------------------------------
-(struct object (class-name fields)) 
+(struct object (class-name fields))
 (struct class (super-name fields-names methods))
 (struct method (super-name params body fields))
 
 ;Define o ambiente de classes como um ambiente inicialmente vazio
-(define the-class-env '()) 
+(define the-class-env '())
 
 ; proc-val :: Var x Expr x Env -> Proc
 (define (proc-val var exp Δ) ; call by value
@@ -31,7 +31,7 @@
     [(ast:bool v) v]
     [(ast:dif e1 e2) (- (value-of e1 Δ) (value-of e2 Δ))]
     [(ast:zero? e) (zero? (value-of e Δ))]
-    [(ast:not e) (value-of e Δ)]
+    [(ast:not e) (not (value-of e Δ))]
     [(ast:if e1 e2 e3) (if (value-of e1 Δ) (value-of e2 Δ) (value-of e3 Δ))]
     [(ast:var v) (apply-env Δ v)] ; esta implementação só funciona para variáveis imutáveis
     [(ast:let (ast:var x) e1 e2) (value-of e2 (extend-env x (value-of e1 Δ) Δ))]
@@ -56,8 +56,8 @@
                                       obj
                                       args))
                                   obj)]
-    [e (raise-user-error "unimplemented-construction: " e)]
-    ))
+    [(ast:print e) (display (value-of e Δ))]
+    [e (raise-user-error "unimplemented-construction 1: " e)]))
 
 ; result-of :: Stmt -> Env -> State -> State
 (define (result-of stmt Δ)
@@ -68,7 +68,9 @@
     [(ast:print e) (display (value-of e Δ))]
     [(ast:return e) (value-of e Δ)]
     [(ast:block stmts)
-     (for-each (lambda (s) (result-of s Δ)) stmts)]
+     (let ([block-env Δ]) ; Cria um ambiente local para o bloco
+       (for-each (lambda (s) (set! block-env (result-of s block-env))) stmts) ; Executa cada stmt no ambiente local
+       block-env)] ; Retorna o ambiente resultante
     [(ast:if-stmt e s1 s2)
      (if (value-of e Δ)
          (result-of s1 Δ)
@@ -80,7 +82,7 @@
              (result-of s Δ)
              (loop))
            'done))]
-    [(ast:local-decl (ast:var x) s)
+   [(ast:local-decl (ast:var x) s)
      (let ([value (value-of x Δ)])
        (result-of s (extend-env x value Δ)))]
     [(ast:send object method args) (let ([args (values-of-exps args Δ)] 
@@ -95,8 +97,24 @@
                                        (find-method (apply-env Δ '%super) (ast:var-name name))
                                        obj
                                        args))]
-    [e (raise-user-error "unimplemented-construction: " e)]
-    ))
+    [e (raise-user-error "unimplemented-construction 2: " e)]))
+
+; ------------------------------- NEW -------------------------------------
+; Implementa a construção `new`
+(define (value-of-new exp Δ)
+  (match exp
+    [(ast:new class args)
+     (let* ([class-name (ast:var-name class)]
+            [class (lookup-class class-name)])
+       (if class
+           (let ([args (values-of-exps args Δ)]
+                 [obj (new-object class-name)])
+             (let ([initialize-method (find-method class-name "initialize")])
+               (if initialize-method
+                   (apply-method initialize-method obj args)
+                   obj)))
+           (raise-user-error "Unknown class: " class-name)))]
+    [_ (raise-user-error "Invalid new expression")]))
 
 ; ----------------------------- OBJETO ------------------------------------
 ;Construção de um novo objeto pegando o nome de classe e os campos
@@ -140,38 +158,39 @@
 (define lookup-class    
   (lambda (name)
     (let ((maybe-pair (assoc name the-class-env)))
-      (if maybe-pair (cadr maybe-pair)
+      (if maybe-pair
+          (cadr maybe-pair)
           (display "Classe desconhecida\n")))))
 
-;Inicializar uma lista de pares que representa o nome da classe e descricao da classe
-(define initialize-class-env!
-  (lambda (c-decls)
-    (set! the-class-env
-          (list
-           (list "object" (class #f '() '())))) 
-    (for-each initialize-class-decl! c-decls)))
+;Inicializar uma lista de pares que representa o nome da classe e descrição da classe
+(define (initialize-class-env! c-decls)
+  (set! the-class-env '()) ; Limpa o ambiente de classes antes de adicionar as declarações
+
+  ; Adiciona a classe "object" inicialmente
+  (add-to-class-env! "object" (class #f '() '()))
+
+  ; Inicializa as declarações das classes
+  (for-each initialize-class-decl! c-decls))
 
 
-;Inicializa as declaracoes da classe (nome,metodo,nome da classe que estende e campos)
+
+
+;Inicializa as declarações da classe (nome, método, nome da classe que estende e campos)
 (define (initialize-class-decl! c-decl)
-    (let ([c-name (ast:var-name (ast:decl-name c-decl))]
-          [c-methods (ast:decl-methods c-decl)]
-          [c-super (ast:var-name (ast:decl-super c-decl))]
-          [c-fields (map ast:var-name (ast:decl-fields c-decl))])
-
-       (let ([c-fields
-             (append-field-names
-              (class-fields-names (lookup-class c-super))
-              c-fields)])
-        (add-to-class-env! c-name
-         (class c-super c-fields
-           (merge-method-envs
-            (class-methods (lookup-class c-super))
-            (method-decls-method-env
-             c-methods c-super c-fields)))))
-    )
-)
-
+  (let ([c-name (ast:var-name (ast:decl-name c-decl))]
+        [c-methods (ast:decl-methods c-decl)]
+        [c-super (ast:var-name (ast:decl-super c-decl))]
+        [c-fields (map ast:var-name (ast:decl-fields c-decl))])
+    (let ([c-fields
+           (append-field-names
+            (class-fields-names (lookup-class c-super))
+            c-fields)])
+      (add-to-class-env! c-name
+                         (class c-super c-fields
+                                (merge-method-envs
+                                 (class-methods (lookup-class c-super))
+                                 (method-decls-method-env
+                                  c-methods c-super c-fields)))))))
 ; Adiciona as propriedades da superclasse junto das propriedades da classe
 (define append-field-names 
   (lambda (super-fields new-fields)
@@ -202,7 +221,7 @@
 ;Efetua merge no ambiente da classe e da super
 (define merge-method-envs 
   (lambda (super-m-env new-m-env1) 
-    (append new-m-env1 super-m-env))) 
+    (append new-m-env1 super-m-env)))
 
 
 ;Pega as declarações de método de uma classe e cria um ambiente de metodo, gravando para cada metodo suas variáveis vinculadas, corpo, nome da super classe e campos.
@@ -266,12 +285,10 @@
             (zip  (cdr l1) (cdr l2))))
 )
 
-; Boot da aplicação onde vai comecar a execução do programa
+; Boot da aplicação onde vai começar a execução do programa
 ; Começando o ambiente de classes passando as declarações
 ; Avalia a expressão em um ambiente vazio
 (define (value-of-program prog) 
-   (match-define (ast:prog decl exp) prog)
-   (initialize-class-env! decl)
-    ; you must collect all the classes declared and building its respectively environment
-    ; execute the prog expression in the correct environment
-  (value-of exp init-env))
+  (match-define (ast:prog decl exp) prog)
+  (initialize-class-env! decl)
+  (result-of exp init-env))
