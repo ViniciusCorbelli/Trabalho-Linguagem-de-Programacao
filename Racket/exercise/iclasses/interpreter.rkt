@@ -9,20 +9,125 @@
 ; Representação de procedimentos para escopo estático
 ; ----------------- STRUCTS ------------------------------
 (struct object (class-name fields))
-(struct class (super-name fields-names methods))
-(struct method (super-name params body fields))
+(struct class (super-name field-names method-env))
+(struct method (vars body super-name fields))
 
 ;Define o ambiente de classes como um ambiente inicialmente vazio
-(define the-class-env '())
+(define class-env '())
 
-; proc-val :: Var x Expr x Env -> Proc
-(define (proc-val var exp Δ) ; call by value
-  (lambda (val)
-    (value-of exp (extend-env var (newref val) Δ))))
 
-; apply-proc :: Proc x ExpVal -> ExpVal  
-(define (apply-proc proc val)
-  (proc val))
+; --------------------------- ENV ----------------------------------
+(define (initialize-class-env decls)
+  (begin
+    (add-class-to-env "object" (class #f '() '()))
+    (add-classes-from-decls decls)))
+
+; Função para adicionar nova classe ao ambiente
+(define (add-class-to-env class-name class-list)
+  (set! class-env (cons (cons class-name class-list) class-env)))
+
+; Função para adicionar as classes de decl ao ambiente
+(define (add-classes-from-decls decls)
+  (for ([decl decls])
+    (let* ([name (ast:var-name (ast:decl-name decl))]
+           [super-name (ast:var-name (ast:decl-super decl))]
+           [super-fields (class-field-names (find-class super-name))]
+           [fields (append-field-names super-fields (get-field-names (ast:decl-fields decl)))]
+           [methods (merge-method-envs (ast:decl-methods decl) super-name fields)])
+      (add-class-to-env name (class super-name fields methods))))
+  1)
+
+; Função para procurar classe no ambiente
+(define (find-class class-name)
+  (cdr (assoc class-name class-env)))
+
+; Função para retornar uma lista de strings dos nomes dos campos de uma classe
+(define (get-field-names fields)
+  (map (lambda (field) (if (string? field) field (ast:var-name field))) fields))
+
+; Função para concatenar campos da classe com a classe pai
+(define (append-field-names super-fields self-fields)
+  (if (empty? super-fields)
+      self-fields
+      (if (member (car super-fields) self-fields)
+          (append-field-names (cdr super-fields) (append self-fields (list (string-append (car super-fields) "%1"))))
+          (append-field-names (cdr super-fields) (append self-fields (list (car super-fields)))))))
+
+; Função para combinar os ambientes dos métodos
+(define (merge-method-envs m-decls super-name fields)
+  (append
+   (map (lambda (m-decl) (create-method super-name fields m-decl)) m-decls)
+   (class-method-env (find-class super-name))))
+
+; Função para criar método com a struct definida a partir dos parâmetros
+(define (create-method super-name fields m-decl)
+  (list
+   (ast:var-name (ast:method-name m-decl))
+   (method (map ast:var-name (ast:method-params m-decl)) (ast:method-body m-decl) super-name fields)))
+
+; Função para avaliar o método no ambiente com as variáveis, os campos e os valores das variáveis self e super
+(define (apply-method method self args)
+  (result-of
+   (method-body method)
+   (bind-vars-to-env
+    (method-vars method)
+    (map newref args)
+    (bind-vars-to-env
+     (method-fields method)
+     (object-fields self)
+     (extend-env "self" self
+                 (extend-env "super" (method-super-name method)
+                             empty-env))))))
+
+; Função para atrelar determinados vars e values a um ambiente
+(define (bind-vars-to-env vars values env)
+  (for ([var vars] [val values])
+    (set! env (extend-env var val env)))
+  env)
+
+; Função para encontrar um método no ambiente
+(define (find-method class-name method-name)
+  (let ([m-env (class-method-env (find-class class-name))])
+    (let ([maybe-pair (assoc method-name m-env)])
+      (if (pair? maybe-pair)
+          (cadr maybe-pair)
+          (raise-user-error "Método não encontrado: " method-name)))))
+
+; ------------------------- UTILS ----------------------------------
+; Função lambda para retornar o value-of de cada expressão
+(define map-value-of
+  (lambda (exps Δ)
+    (map (lambda (exp) (value-of exp Δ)) exps)))
+
+; Função lambda para iniciar uma nova instância de um objeto
+(define (new-object-instance class-name)
+  (object
+   class-name
+   (map (lambda (field-name) (newref null)) (class-field-names (find-class class-name)))))
+
+
+; --------------------------- EXECUTE ------------------------------
+; Executa a regra 'send'
+(define (execute-send object-exp method-name args Δ)
+  (let* ([args-with-value (map-value-of args Δ)]
+         [obj (value-of object-exp Δ)])
+    (apply-method (find-method (object-class-name obj) method-name) obj args-with-value)))
+
+; Executa a regra 'new'
+(define (execute-new-object class-name args Δ)
+  (let* ([args-with-value (map-value-of args Δ)]
+         [obj (new-object-instance class-name)])
+    (apply-method (find-method class-name "initialize") obj args-with-value)
+    obj))
+
+; Executa a regra 'self'
+(define (execute-self Δ) (apply-env Δ "self"))
+
+; Executa a regra 'super'
+(define (execute-super method-name args Δ)
+  (let ([args-with-value (map-value-of args Δ )]
+           [obj (apply-env Δ "self")])
+    (apply-method (find-method (apply-env Δ "super") (ast:var-name method-name)) obj args-with-value )))
 
 ; value-of :: Exp -> ExpVal
 (define (value-of exp Δ)
@@ -33,272 +138,39 @@
     [(ast:zero? e) (zero? (value-of e Δ))]
     [(ast:not e) (not (value-of e Δ))]
     [(ast:if e1 e2 e3) (if (value-of e1 Δ) (value-of e2 Δ) (value-of e3 Δ))]
-    [(ast:return e) (value-of e Δ)]
-    [(ast:var (ast:var x))
-      (apply-env Δ (ast:var-name x))]
+    [(ast:var v) (deref (apply-env Δ v))]
     [(ast:let (ast:var x) e1 e2) (value-of e2 (extend-env x (value-of e1 Δ) Δ))]
-    [(ast:send e (ast:var mth) args)
-      (display "send expression unimplemented")
-      (newline)]
-    [(ast:super name args) (let ([args (values-of-exps args Δ)] 
-                                          [obj (apply-env Δ '%self)])
-                                      (apply-method
-                                       (find-method (apply-env Δ '%super) (ast:var-name name))
-                                       obj
-                                       args))]
-    [(ast:self) (apply-env Δ '%self)]
-    [(ast:new class args)
-     (let ([class-name (ast:var-name class)])
-       (let* ([class (lookup-class class-name)])
-         (if class
-             (let ([args (values-of-exps args Δ)]
-                   [obj (new-object class-name)])
-               (let ([initialize-method (find-method class-name "initialize")])
-                 (if initialize-method
-                     (apply-method initialize-method obj args)
-                     obj)))
-             (raise-user-error "Unknown class: " class-name))))]
-    [e (raise-user-error "unimplemented-construction 1: " e)]
-    ))
+    [(ast:send e (ast:var mth) args) (execute-send e mth args Δ)]
+    [(ast:super (ast:var c) args) (execute-super c args Δ)]
+    [(ast:self) (execute-self Δ)]
+    [(ast:new (ast:var c) args) (execute-new-object c args Δ)]
+    [e (raise-user-error "unimplemented-value-of-construction 1: " e)]))
 
 ; result-of :: Stmt -> Env -> State -> State
 (define (result-of stmt Δ)
   (match stmt
-    [(ast:assign (ast:var x) e)
-      (display "assignment unimplemented")
+    [(ast:assign (ast:var x) e) (begin (setref! (apply-env Δ x) (value-of e Δ)) 42)]
+    [(ast:print e) 
+      (display (value-of e Δ))
       (newline)]
-    [(ast:print e) (display (value-of e Δ))]
     [(ast:return e) (value-of e Δ)]
-    [(ast:block stmts)
-        (let ([block-env Δ]) ; Cria um ambiente local para o bloco
-          (for-each (lambda (s) (set! block-env (result-of s block-env))) stmts) ; Executa cada stmt no ambiente local
-          block-env)] ; Retorna o ambiente resultante
-    [(ast:if-stmt e s1 s2)
-        (if (value-of e Δ)
-            (result-of s1 Δ)
-            (result-of s2 Δ))]
-    [(ast:while e s)
-        (let loop ()
-          (if (value-of e Δ)
-              (begin
-                (result-of s Δ)
-                (loop))
-              'done))]
-     [(ast:local-decl (ast:var x) s)
-      (let ([value (value-of-new s Δ)])
-        (let ([new-env (extend-env x value Δ)])
-          (result-of s new-env)))]
-    [(ast:send object (ast:var mth) args)
-      (let* ([method-name (ast:var-name mth)]
-            [args (values-of-exps args Δ)]
-            [obj (value-of object Δ)])
-        (apply-method (find-method (object-class-name obj) method-name) obj args))]
-    [(ast:super (ast:var c) args)
-      (let* ([class-name (ast:var-name c)]
-            [args (values-of-exps args Δ)]
-            [obj (apply-env Δ '%self)])
-        (apply-method (find-method (apply-env Δ '%super) class-name) obj args))]
-    [e (raise-user-error "unimplemented-construction 2: " e)]
-    ))
-
-(define extend-env
-  (lambda (var val env)
-    (cons (cons var val) env)))
-
-; ------------------------------- NEW -------------------------------------
-; class-fields :: Class -> [Var]
-(define (class-fields class)
-  (class-fields-names class))
-
-; value-of-new :: Exp -> Env -> ExpVal
-(define (value-of-new exp Δ)
-  (display "value-of-new unimplemented")
-  (newline)
-  ;(match exp
-  ;  [(ast:new class args)
-  ;  (let* ([class-name (ast:var-name class)]
-  ;          [class (lookup-class class-name)])
-  ;    (if class
-  ;        (let ([args (values-of-exps args Δ)])
-  ;          (let ([obj (new-object class-name args)])
-  ;            (let ([initialize-method (find-method class-name "initialize")])
-  ;              (if initialize-method
-  ;                  (apply-method initialize-method obj args)
-  ;                  obj))))
-  ;        (raise-user-error "Unknown class: " class-name)))]
-  ;  [e (raise-user-error "Invalid new expression: " e)]))
-)
-
-; create-object :: ClassName x [ExpVal] -> ExpVal
-(define (create-object class-name args)
-  (let ([fields (class-fields (lookup-class class-name))])
-    (object class-name (map newref fields))))
-
-; ----------------------------- OBJETO ------------------------------------
-;Construção de um novo objeto pegando o nome de classe e os campos
-(define new-object      
-  (lambda (class-name)
-    (object             
-      class-name        
-      (map
-       (lambda (field-name)
-         (newref field-name))
-       (class-fields-names (lookup-class class-name))))))
-
-; ----------------------------- METODO ------------------------------------
-; Executa um método de um objeto dentro de um ambiente composto pelas propriedades
-; da classe e da superclasse
-(define (apply-method m self args) 
-  (if (method? m) 
-        (let ([vars (method-params m)]
-              [body (method-body m)]
-              [super-name (method-super-name m)]
-              [fields (method-fields m)])
-          (value-of body (multiple-extend-env vars (map newref args) 
-                                        (extend-env-with-self-and-super 
-                                         self super-name
-                                         (multiple-extend-env fields (object-fields self) 
-                                                     empty-env)))))
-                                                     (display "Método pedido não é método\n")))
-
-; ------------------------------- AMBIENTE ----------------------------------
-;Adiciona classe no ambiente de classes
-(define add-to-class-env!
-  (lambda (class-name class)
-    (set! the-class-env
-          (cons
-           (list class-name class)
-           the-class-env))))
-
-; Busca uma classe pelo nome dentro do ambiente de classes
-(define lookup-class    
-  (lambda (name)
-    (let ((maybe-pair (assoc name the-class-env)))
-      (if maybe-pair
-          (cadr maybe-pair)
-          (display "Classe desconhecida\n")))))
-
-;Inicializar uma lista de pares que representa o nome da classe e descrição da classe
-(define (initialize-class-env! c-decls)
-  (set! the-class-env '()) ; Limpa o ambiente de classes antes de adicionar as declarações
-
-  ; Adiciona a classe "object" inicialmente
-  (add-to-class-env! "object" (class #f '() '()))
-
-  ; Inicializa as declarações das classes
-  (for-each initialize-class-decl! c-decls))
-
-;Inicializa as declarações da classe (nome, método, nome da classe que estende e campos)
-(define (initialize-class-decl! c-decl)
-  (let ([c-name (ast:var-name (ast:decl-name c-decl))]
-        [c-methods (ast:decl-methods c-decl)]
-        [c-super (ast:var-name (ast:decl-super c-decl))]
-        [c-fields (map ast:var-name (ast:decl-fields c-decl))])
-    (let ([c-fields
-           (append-field-names
-            (class-fields-names (lookup-class c-super))
-            c-fields)])
-      (add-to-class-env! c-name
-                         (class c-super c-fields
-                                (merge-method-envs
-                                 (class-methods (lookup-class c-super))
-                                 (method-decls-method-env
-                                  c-methods c-super c-fields)))))))
-
-; Adiciona as propriedades da superclasse junto das propriedades da classe
-(define append-field-names 
-  (lambda (super-fields new-fields)
-    (cond
-      ((null? super-fields) new-fields) 
-      (else                             
-       (cons
-        (if (memq (car super-fields) new-fields) 
-            (fresh-identifier (car super-fields)) 
-            (car super-fields))
-        (append-field-names   
-         (cdr super-fields) new-fields))))))
-
-
-; ------------------------- AMBIENTE METODOS ---------------------------
-
-; Vai procurar os metodos pelo nome do metodo e da classe
-(define (find-method c-name name)
-  (let ([this-class (lookup-class c-name)])
-    (if (void? this-class)
-        (display "Classe não encontrada\n")
-        (let ([m-env (class-methods this-class)])
-          (let ([maybe-pair (assoc name m-env)])
-            (if (pair? maybe-pair)
-                (cadr maybe-pair)
-                (display "Método não encontrado\n")))))))
-
-;Efetua merge no ambiente da classe e da super
-(define merge-method-envs 
-  (lambda (super-m-env new-m-env1) 
-    (append new-m-env1 super-m-env)))
-
-
-;Pega as declarações de método de uma classe e cria um ambiente de metodo, gravando para cada metodo suas variáveis vinculadas, corpo, nome da super classe e campos.
-(define (method-decls-method-env m-decls super-name field-names)
-  (map
-   (lambda (m-decl)
-     (let ([method-name (ast:var-name (ast:method-name m-decl))]
-           [vars (map ast:var-name (ast:method-params m-decl))]
-           [body (ast:method-body m-decl)])
-       (list method-name (method super-name vars body field-names))))
-   m-decls))
-
-; Criação de ambiente estendido com procedimento recursivo
-(define (extend-env-rec name var body env)
-  (lambda (svar)
-    (if (equal? svar name)
-        (newref (proc-val var body (extend-env-rec name var body env)))
-        (apply-env env svar))))
-
-
-;Estende env da classe com a que ela herda metodos
-(define (extend-env-with-self-and-super self super-name saved-env) ; função faz a ligação de %self e %super com um objeto e um nome de classe, respectivamente
-  (lambda (svar)
-    (case svar
-            ((%self) self)
-            ((%super) super-name)
-            (else (apply-env saved-env svar)))))
-
-
-;Implementa o extend-env em uma lista
-(define (multiple-extend-env vars values env) 
- (foldl (lambda (var-value env) (extend-env (first var-value) (second var-value) env)) env (zip vars values))
-)
-
-
-;Qualquer campo da superclasse que é sombreado por um novo campo é substituído por um novo identificador
-(define fresh-identifier 
-  (let ((sn 0))
-    (lambda (identifier)  
-      (set! sn (+ sn 1))
-      (string->symbol
-       (string-append
-        (symbol->string identifier)
-        "%"
-        (number->string sn))))))
-
-; values-of-exps :: [Exp] -> Env -> [ExpVal]
-(define (values-of-exps exps Δ)
-  (map (lambda (exp) (value-of exp Δ)) exps))
-
-;Concatena as listas em uma lista só
-(define (zip l1 l2)
-  (if (or (null? l1) (null? l2))
-      '()
-      (cons (list (car l1) (car l2))
-            (zip  (cdr l1) (cdr l2))))
-)
+    [(ast:block stmts) (for ([s stmts]) (result-of s Δ))]
+    [(ast:if-stmt e s1 s2) (if (value-of e Δ) (result-of s1 Δ) (result-of s2 Δ))]
+    [(ast:while e s) (if (value-of e Δ)
+                         (begin
+                           (result-of s Δ)
+                           (result-of stmt Δ))
+                         'done)]
+    [(ast:local-decl (ast:var x) s) (result-of s (extend-env x (newref 'null) Δ))]
+    [(ast:send e (ast:var mth) args) (execute-send e mth args Δ)]
+    [(ast:super (ast:var c) args) (execute-super c args Δ)]
+    [e (raise-user-error "unimplemented-result-of-construction 2: " e)]))
 
 (define (value-of-program prog)
   (empty-store)
   (match prog
     [(ast:prog decls stmt)
      (begin
-       (initialize-class-env! decls) ; Inicializa o ambiente de classes
+       (initialize-class-env decls)
        (result-of stmt init-env))]))
 
