@@ -1,3 +1,5 @@
+; Aloizio Pita de Castro Júnior 201365006C
+; Vinícius de Oliveira Corbelli 202065093C
 #lang racket
 
 (require dcc019/util/env
