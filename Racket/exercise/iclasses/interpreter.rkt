@@ -38,7 +38,12 @@
     [(ast:self) (apply-env Δ "self")]
     [(ast:new (ast:var c) args)
       (let* ([args-with-value (map-value-of args Δ)]
-          [obj (new-object-instance c)])
+          [obj 
+            (let* ([class (find-class c)]
+                [field-names (class-field-names class)]
+                [fields (map (λ (field-name) (newref null)) field-names)])
+            (object c fields))
+          ])
       (apply-method (find-method c "initialize") obj args-with-value)
       obj)
     ]
@@ -68,16 +73,11 @@
     [(ast:super (ast:var c) args)
       (let ([args-with-value (map-value-of args Δ )]
           [obj (apply-env Δ "self")])
-      (apply-method (find-method (apply-env Δ "super") (ast:var-name args)) obj args-with-value ))
+      (apply-method (find-method (apply-env Δ "super") c) obj args-with-value ))
     ]
     [e (raise-user-error "unimplemented-result-of-construction: " e)]))
 
-(define (initialize-class-env decls)
-  (begin
-    (add-class-to-env "object" (class #f '() '()))
-    (add-classes-from-decls decls)))
-
-(define (add-class-to-env class-name class-list)
+(define (add-class class-name class-list)
   (if (class-exists? class-name class-list)
       (raise-user-error "Já existe uma classe com a mesma definição: " class-name)
       (set! class-env (cons (cons class-name class-list) class-env))))
@@ -87,17 +87,6 @@
     (and existing-class
          (equal? (class-field-names existing-class) (class-field-names class-list))
          (equal? (class-method-env existing-class) (class-method-env class-list)))))
-
-(define (add-classes-from-decls decls)
-  (for ([decl decls])
-    (let* ([class-name (ast:var-name (ast:decl-name decl))]
-           [super-name (ast:var-name (ast:decl-super decl))]
-           [super-fields (class-field-names (find-class super-name))]
-           [fields (append-field-names super-fields (get-field-names (ast:decl-fields decl)))]
-           [methods (merge-method-envs (ast:decl-methods decl) super-name fields)]
-           [class (class super-name fields methods)])
-      (add-class-to-env class-name class)))
-  1)
 
 (define (find-class-exists class-name)
   (let ([maybe-pair (assoc class-name class-env)])
@@ -126,7 +115,7 @@
          self-fields
          super-fields))
 
-(define (merge-method-envs m-decls super-name fields)
+(define (merge-method m-decls super-name fields)
   (append
    (map (lambda (m-decl) (create-method super-name fields m-decl)) m-decls)
    (class-method-env (find-class super-name))))
@@ -141,15 +130,15 @@
          [extended-env (extend-env "self" self
                                    (extend-env "super" (method-super-name method)
                                                empty-env))]
-         [method-env (bind-vars-to-env (method-fields method)
+         [method-env (bind-vars (method-fields method)
                                        (object-fields self)
                                        extended-env)])
     (result-of (method-body method)
-               (bind-vars-to-env (method-vars method)
+               (bind-vars (method-vars method)
                                  args-with-refs
                                  method-env))))
 
-(define (bind-vars-to-env vars values env)
+(define (bind-vars vars values env)
   (for ([var vars] [val values])
     (set! env (extend-env var val env)))
   env)
@@ -164,17 +153,19 @@
 (define (map-value-of exps Δ)
   (map (λ (exp) (value-of exp Δ)) exps))
 
-(define (new-object-instance class-name)
-  (let* ([class (find-class class-name)]
-         [field-names (class-field-names class)]
-         [fields (map (λ (field-name) (newref null)) field-names)])
-    (object class-name fields)))
-
 (define (value-of-program prog)
   (empty-store)
   (match prog
     [(ast:prog decls stmt)
      (begin
-       (initialize-class-env decls)
-       (result-of stmt init-env))]))
+        (add-class "object" (class #f '() '()))
+        (for ([decl decls])
+          (let* ([class-name (ast:var-name (ast:decl-name decl))]
+                [super-name (ast:var-name (ast:decl-super decl))]
+                [super-fields (class-field-names (find-class super-name))]
+                [fields (append-field-names super-fields (get-field-names (ast:decl-fields decl)))]
+                [methods (merge-method (ast:decl-methods decl) super-name fields)]
+                [class (class super-name fields methods)])
+            (add-class class-name class)))
+        (result-of stmt init-env))]))
 
